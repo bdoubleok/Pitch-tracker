@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NOVA Premier 13U — Live Pitch Tracker</title>
+<style>
+  /* ---------- Design tokens (the "variables" layer, like Figma styles) ---------- */
+  :root{
+    --navy-950:#070d1c;
+    --navy-900:#0b1429;
+    --navy-850:#101c38;
+    --navy-800:#152347;
+    --navy-700:#1d3160;
+    --line:#24386b;
+    --ink:#eaf0ff;
+    --ink-dim:#8ea2cf;
+    --ink-faint:#5c719e;
+    --strike:#3ddc84;   /* green = good / strike */
+    --strike-d:#1f7a4a;
+    --ball:#ffb02e;     /* amber = ball */
+    --ball-d:#a86a10;
+    --foul:#5b8def;     /* blue = foul */
+    --hit:#ff5d6c;      /* red = damage allowed */
+    --hit-d:#992633;
+    --out:#9aa7c7;      /* neutral = out */
+    --warn:#ff4d4d;
+    --r:14px;
+    --r-sm:9px;
+    --pad:14px;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--navy-950);color:var(--ink);font-family:var(--sans);font-size:16px;-webkit-text-size-adjust:100%}
+  body{max-width:560px;margin:0 auto;padding:0 0 90px;background:
+    radial-gradient(1200px 600px at 50% -10%, #11224a 0%, transparent 60%),
+    var(--navy-950);min-height:100vh}
+  .tnum{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  h1,h2,h3{margin:0;font-weight:700;letter-spacing:.2px}
+  button{font-family:inherit;color:inherit;border:none;cursor:pointer;font-size:1rem}
+  button:active{transform:scale(.97)}
+  .muted{color:var(--ink-dim)}
+  .faint{color:var(--ink-faint)}
+
+  /* ---------- Header ---------- */
+  header{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,var(--navy-900),rgba(11,20,41,.92));
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px var(--pad)}
+  .hrow{display:flex;align-items:center;gap:10px}
+  .badge{font-family:var(--mono);font-weight:700;font-size:.72rem;letter-spacing:1.5px;color:var(--strike);
+    border:1px solid var(--strike-d);border-radius:6px;padding:3px 7px}
+  .hrow input{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);border-radius:8px;
+    padding:7px 9px;font-size:.9rem;min-width:0}
+  #opp{flex:1}
+  select{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 9px;font-size:.9rem}
+
+  .pitcherbar{display:flex;align-items:center;gap:10px;margin-top:9px}
+  .pitcherbar select{flex:1}
+  .pcount{display:flex;flex-direction:column;align-items:flex-end;line-height:1}
+  .pcount .n{font-family:var(--mono);font-size:1.5rem;font-weight:700}
+  .pcount .l{font-size:.6rem;letter-spacing:1px;color:var(--ink-faint)}
+  .pcount.warn .n{color:var(--ball)}
+  .pcount.over .n{color:var(--warn)}
+
+  /* ---------- Cockpit ---------- */
+  .cockpit{padding:var(--pad)}
+  .countgrid{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:12px}
+  .bs{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:10px 6px;text-align:center}
+  .bs .big{font-family:var(--mono);font-size:2.6rem;font-weight:700;line-height:1}
+  .bs .lab{font-size:.62rem;letter-spacing:1.5px;color:var(--ink-faint);margin-top:4px}
+  .bs.balls .big{color:var(--ball)}
+  .bs.strikes .big{color:var(--strike)}
+
+  /* diamond + outs center column */
+  .center{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .diamond{position:relative;width:92px;height:92px;transform:rotate(45deg);margin:2px}
+  .base{position:absolute;width:30px;height:30px;background:var(--navy-800);border:2px solid var(--line);border-radius:6px}
+  .base.on{background:var(--ball);border-color:#ffd98a;box-shadow:0 0 12px rgba(255,176,46,.5)}
+  .b1{right:0;bottom:0}.b2{right:0;top:0}.b3{left:0;top:0}
+  .home{position:absolute;left:0;bottom:0;width:18px;height:18px;background:var(--navy-700);border:2px solid var(--line);
+    border-radius:0 0 0 6px;transform:rotate(0deg)}
+  .outs{display:flex;gap:7px}
+  .outdot{width:16px;height:16px;border-radius:50%;border:2px solid var(--ink-faint)}
+  .outdot.on{background:var(--hit);border-color:var(--hit)}
+  .outlab{font-size:.62rem;letter-spacing:1.5px;color:var(--ink-faint)}
+
+  .risp-flag{font-size:.62rem;letter-spacing:1px;font-weight:700;padding:3px 8px;border-radius:20px;
+    background:var(--hit-d);color:#ffd2d6;visibility:hidden}
+  .risp-flag.on{visibility:visible}
+
+  /* pitch buttons — big tap targets (Fitts's Law) */
+  .pitchbtns{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:10px}
+  .pb{padding:20px 8px;border-radius:var(--r);font-weight:800;font-size:1.05rem;letter-spacing:.5px;
+    border:1px solid rgba(255,255,255,.08)}
+  .pb small{display:block;font-size:.6rem;font-weight:600;letter-spacing:1px;opacity:.7;margin-top:3px}
+  .pb.ball{background:linear-gradient(180deg,var(--ball),var(--ball-d));color:#3a2400}
+  .pb.strike{background:linear-gradient(180deg,var(--strike),var(--strike-d));color:#04230f}
+  .pb.foul{background:linear-gradient(180deg,var(--foul),#284a91);color:#eaf0ff}
+
+  .seclab{font-size:.62rem;letter-spacing:2px;color:var(--ink-faint);margin:14px 2px 7px;font-weight:700}
+  .outcomes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .oc{padding:13px 4px;border-radius:var(--r-sm);font-weight:700;font-size:.92rem;background:var(--navy-800);
+    border:1px solid var(--line)}
+  .oc.hit{background:var(--hit-d);border-color:#b83340;color:#ffe3e6}
+  .oc.out{background:var(--navy-700)}
+  .oc.err{background:#5a3a12;border-color:#8a5a1c;color:#ffe2b8}
+
+  .quickrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+  .qb{padding:12px 4px;border-radius:var(--r-sm);font-weight:700;font-size:.85rem;background:var(--navy-850);border:1px solid var(--line);color:var(--ink-dim)}
+  .qb.run{background:var(--strike-d);color:#dffbe9;border-color:#2c8f57}
+  .qb.undo{background:var(--navy-800)}
+
+  /* ---------- Dashboard ---------- */
+  .dash{padding:0 var(--pad)}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:6px}
+  .card{background:var(--navy-900);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+  .card .v{font-family:var(--mono);font-size:1.8rem;font-weight:700;line-height:1}
+  .card .k{font-size:.64rem;letter-spacing:1.2px;color:var(--ink-faint);margin-top:5px;font-weight:700}
+  .card .sub{font-size:.68rem;color:var(--ink-dim);margin-top:5px}
+  .card.good .v{color:var(--strike)}
+  .card.bad .v{color:var(--hit)}
+  .card.warnv .v{color:var(--ball)}
+  .bar{height:5px;border-radius:3px;background:var(--navy-700);margin-top:7px;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:3px}
+
+  /* expected vs actual */
+  .xr{background:var(--navy-900);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-top:9px}
+  .xr-top{display:flex;justify-content:space-around;text-align:center}
+  .xr-top .v{font-family:var(--mono);font-size:2.2rem;font-weight:700;line-height:1}
+  .xr-top .k{font-size:.6rem;letter-spacing:1.4px;color:var(--ink-faint);margin-top:5px;font-weight:700}
+  .xr-exp .v{color:var(--foul)}
+  .xr-act .v{color:var(--hit)}
+  .xr-diff{text-align:center;font-size:.8rem;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+  .xr-diff b{font-family:var(--mono);font-size:1.05rem}
+  .inngraph{display:flex;gap:5px;align-items:flex-end;height:60px;margin-top:12px}
+  .inncol{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+  .inncol .pair{display:flex;gap:2px;align-items:flex-end;height:46px}
+  .inncol .pair i{width:7px;border-radius:2px 2px 0 0;min-height:2px}
+  .inncol .pair .e{background:var(--foul)}
+  .inncol .pair .a{background:var(--hit)}
+  .inncol .lab{font-size:.56rem;color:var(--ink-faint);font-family:var(--mono)}
+
+  /* inning log table */
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:.74rem}
+  th,td{padding:7px 4px;text-align:center;border-bottom:1px solid var(--line)}
+  th{color:var(--ink-faint);font-size:.58rem;letter-spacing:.8px;font-weight:700}
+  td{font-family:var(--mono)}
+  td.l,th.l{text-align:left}
+  tr.tot td{border-top:2px solid var(--line);font-weight:700;color:var(--strike)}
+  tr.live td{background:rgba(61,220,132,.10)}
+  tr.live td.l{color:var(--strike);font-weight:700}
+
+  details{margin-top:12px;background:var(--navy-900);border:1px solid var(--line);border-radius:var(--r)}
+  summary{padding:13px var(--pad);font-size:.74rem;letter-spacing:1.5px;color:var(--ink-dim);font-weight:700;cursor:pointer;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"＋";float:right;color:var(--ink-faint)}
+  details[open] summary::after{content:"－"}
+  .setbody{padding:0 var(--pad) var(--pad)}
+  .setrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:.85rem}
+  .setrow input{width:72px;text-align:center;background:var(--navy-850);border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px;font-family:var(--mono)}
+  .probtbl{width:100%;margin-top:8px;font-size:.78rem}
+  .probtbl input{width:54px}
+
+  /* footer action bar */
+  .footer{position:fixed;bottom:0;left:0;right:0;z-index:40;max-width:560px;margin:0 auto;
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px var(--pad);
+    background:linear-gradient(0deg,var(--navy-950),rgba(7,13,28,.85));backdrop-filter:blur(8px);border-top:1px solid var(--line)}
+  .fb{padding:14px 6px;border-radius:var(--r-sm);font-weight:800;font-size:.86rem;background:var(--navy-800);border:1px solid var(--line)}
+  .fb.k{background:var(--strike-d);color:#dffbe9;border-color:#2c8f57}
+  .fb.bb{background:var(--ball-d);color:#fff0d6;border-color:#a86a10}
+  .fb.inn{background:var(--navy-700)}
+  .toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--navy-700);border:1px solid var(--line);
+    color:var(--ink);padding:9px 16px;border-radius:30px;font-size:.8rem;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <span class="badge">NOVA · 13U</span>
+    <input id="opp" placeholder="Opponent…" />
+    <span class="muted tnum" style="font-size:.8rem">Inn <b id="inningNo" style="color:var(--ink)">1</b></span>
+  </div>
+  <div class="pitcherbar">
+    <select id="pitcher"></select>
+    <div class="pcount" id="pcountWrap">
+      <span class="n tnum" id="pcount">0</span>
+      <span class="l">PITCHES</span>
+    </div>
+  </div>
+</header>
+
+<section class="cockpit">
+  <div class="countgrid">
+    <div class="bs balls"><div class="big tnum" id="balls">0</div><div class="lab">BALLS</div></div>
+    <div class="center">
+      <div class="diamond">
+        <div class="base b2" id="b2"></div>
+        <div class="base b3" id="b3"></div>
+        <div class="base b1" id="b1"></div>
+      </div>
+      <div class="outs">
+        <div class="outdot" id="o1"></div><div class="outdot" id="o2"></div><div class="outdot" id="o3"></div>
+      </div>
+      <div class="outlab">OUTS</div>
+      <div class="risp-flag" id="rispFlag">RISP</div>
+    </div>
+    <div class="bs strikes"><div class="big tnum" id="strikes">0</div><div class="lab">STRIKES</div></div>
+  </div>
+
+  <div class="pitchbtns">
+    <button class="pb ball" data-act="pitch" data-arg="ball">BALL</button>
+    <button class="pb strike" data-act="pitch" data-arg="strike">STRIKE<small>called / swing</small></button>
+    <button class="pb foul" data-act="pitch" data-arg="foul">FOUL</button>
+  </div>
+
+  <div class="seclab">BALL IN PLAY →</div>
+  <div class="outcomes">
+    <button class="oc out" data-act="resolve" data-arg="OUT">OUT</button>
+    <button class="oc hit" data-act="resolve" data-arg="1B">1B</button>
+    <button class="oc hit" data-act="resolve" data-arg="2B">2B</button>
+    <button class="oc hit" data-act="resolve" data-arg="3B">3B</button>
+    <button class="oc hit" data-act="resolve" data-arg="HR">HR</button>
+    <button class="oc out" data-act="resolve" data-arg="FC">FC</button>
+    <button class="oc err" data-act="resolve" data-arg="ROE">REACH<br>ON ERR</button>
+    <button class="oc out" data-act="resolve" data-arg="HBP">HBP</button>
+  </div>
+
+  <div class="quickrow">
+    <button class="qb run" data-act="run">+ RUN</button>
+    <button class="qb" data-act="fieldErr">+ ERROR<br><span class="faint" style="font-size:.6rem">(missed out)</span></button>
+    <button class="qb" data-act="outManual">+ OUT</button>
+    <button class="qb undo" data-act="undo">↶ UNDO</button>
+  </div>
+</section>
+
+<section class="dash">
+  <div class="seclab">LIVE — THIS GAME</div>
+  <div class="cards">
+    <div class="card" id="cardFPS">
+      <div class="v tnum"><span id="fpsPct">–</span>%</div>
+      <div class="k">FIRST-PITCH STRIKE</div>
+      <div class="sub"><span id="fpsRaw">0/0</span> · season 50.5% · goal <span id="fpsGoalTxt">60</span>%</div>
+      <div class="bar"><i id="fpsBar" style="width:0%;background:var(--strike)"></i></div>
+    </div>
+    <div class="card">
+      <div class="v tnum" id="strikePct">–<span style="font-size:1rem">%</span></div>
+      <div class="k">STRIKE %</div>
+      <div class="sub"><span id="strikeRaw">0/0</span> · season 52.2%</div>
+      <div class="bar"><i id="strikeBar" style="width:0%;background:var(--foul)"></i></div>
+    </div>
+    <div class="card bad">
+      <div class="v tnum" id="walks">0</div>
+      <div class="k">WALKS</div>
+      <div class="sub"><span id="bbInn">0.00</span>/inn · season 1.24/inn</div>
+    </div>
+    <div class="card warnv">
+      <div class="v tnum" id="extraP">0</div>
+      <div class="k">EXTRA PITCHES</div>
+      <div class="sub"><span id="extraBB">0</span> walks · <span id="extraEE">0</span> errors</div>
+    </div>
+    <div class="card">
+      <div class="v tnum" id="rispBA">.000</div>
+      <div class="k">BA / RISP — AGAINST</div>
+      <div class="sub"><span id="rispRaw">0-0</span> w/ runners on 2nd/3rd</div>
+    </div>
+    <div class="card">
+      <div class="v tnum"><span id="ppi">0.0</span></div>
+      <div class="k">PITCHES / INNING</div>
+      <div class="sub">season 5.8 · efficient ≈ 15/inn</div>
+    </div>
+  </div>
+
+  <div class="seclab">EXPECTED vs ACTUAL RUNS ALLOWED</div>
+  <div class="xr">
+    <div class="xr-top">
+      <div class="xr-exp"><div class="v tnum" id="xrExp">0.0</div><div class="k">EXPECTED (xR)</div></div>
+      <div class="xr-act"><div class="v tnum" id="xrAct">0</div><div class="k">ACTUAL</div></div>
+    </div>
+    <div class="xr-diff" id="xrDiff">Even with expectation</div>
+    <div class="inngraph" id="inngraph"></div>
+    <div style="text-align:center;font-size:.6rem;color:var(--ink-faint);margin-top:6px">
+      <span style="color:var(--foul)">▉</span> expected &nbsp; <span style="color:var(--hit)">▉</span> actual &nbsp;·&nbsp; per inning
+    </div>
+  </div>
+
+  <div class="seclab">PITCHER SPLITS</div>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table id="pitcherTbl">
+      <thead><tr><th class="l">Pitcher</th><th>P</th><th>S%</th><th>FPS%</th><th>BB</th><th>+P</th><th>xR</th><th>R</th></tr></thead>
+      <tbody id="pitcherBody"></tbody>
+    </table>
+  </div>
+
+  <div class="seclab">BY INNING</div>
+  <table id="innTbl">
+    <thead><tr><th class="l">Inn</th><th>P</th><th>BB</th><th>Err</th><th>+P</th><th>xR</th><th>R</th></tr></thead>
+    <tbody id="innBody"></tbody>
+  </table>
+
+  <details>
+    <summary>SETTINGS & MODEL ASSUMPTIONS</summary>
+    <div class="setbody">
+      <div class="setrow"><span>Pitch-count warning limit</span><input id="setLimit" type="number" value="85"></div>
+      <div class="setrow"><span>First-pitch-strike goal %</span><input id="setGoal" type="number" value="60"></div>
+      <div class="faint" style="font-size:.72rem;margin-top:12px;line-height:1.5">
+        <b style="color:var(--ink-dim)">Expected runs (xR)</b> estimates how many runs <i>should</i> score given the traffic you allow. Each runner who reaches base adds the probability that a runner in that spot eventually scores. Tune the table to your level — youth scores higher than these defaults.
+      </div>
+      <table class="probtbl">
+        <thead><tr><th class="l">Runner on</th><th>0 out</th><th>1 out</th><th>2 out</th></tr></thead>
+        <tbody>
+          <tr><td class="l">1st</td><td><input data-b="1" data-o="0" value=".39"></td><td><input data-b="1" data-o="1" value=".26"></td><td><input data-b="1" data-o="2" value=".13"></td></tr>
+          <tr><td class="l">2nd</td><td><input data-b="2" data-o="0" value=".61"></td><td><input data-b="2" data-o="1" value=".42"></td><td><input data-b="2" data-o="2" value=".23"></td></tr>
+          <tr><td class="l">3rd</td><td><input data-b="3" data-o="0" value=".84"></td><td><input data-b="3" data-o="1" value=".67"></td><td><input data-b="3" data-o="2" value=".27"></td></tr>
+        </tbody>
+      </table>
+      <button class="qb" style="width:100%;margin-top:14px;padding:13px" data-act="copySummary">📋 COPY GAME SUMMARY</button>
+      <button class="qb" style="width:100%;margin-top:8px;padding:13px;background:#3a1414;border-color:#6a2020;color:#ffd2d2" data-act="reset">RESET GAME</button>
+    </div>
+  </details>
+</section>
+
+<div class="footer">
+  <button class="fb bb" data-act="resolve" data-arg="BB">WALK</button>
+  <button class="fb k" data-act="resolve" data-arg="K">STRIKEOUT</button>
+  <button class="fb inn" data-act="endInning">END INNING ▸</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   ARCHITECTURE NOTE (for a designer learning design engineering):
+   One STATE object is the single source of truth — like the props/variants
+   of a Figma component. The UI never holds its own truth; render() redraws
+   everything as a pure function of state. Every button is an "action" that
+   mutates state, snapshots for undo, then calls render(). Unidirectional
+   data flow — the same mental model as React, just in plain JS.
+   ===================================================================== */
+
+// Pitcher roster pulled from your season CSV (anyone with innings pitched)
+const ROSTER = [
+  {num:12,name:"Comottor, Jon"}, {num:5,name:"Kingsland, Gavin"},
+  {num:11,name:"Kupets, Ethan"}, {num:3,name:"Cook, Max"},
+  {num:13,name:"Edwards, Vinny"}, {num:31,name:"Hayes, Ryan"},
+  {num:9,name:"Walowac, Zach"}, {num:1,name:"Leach, Troy"},
+  {num:6,name:"Larson, Christopher"}
+];
+
+function freshInning(no){
+  return {no, pitches:0, walkPitches:0, eePitches:0, walks:0, errors:0, runs:0, xR:0};
+}
+function freshPitcher(p){
+  // Each pitcher carries their own full stat line — splits are just
+  // "attribute every event to whoever is currently on the mound."
+  return {...p, pitches:0, strikesThrown:0, firstPitchesSeen:0, fps:0,
+    pa:0, ab:0, hits:0, walks:0, rispAB:0, rispH:0,
+    xR:0, actualR:0, walkPitches:0, eePitches:0};
+}
+function freshState(){
+  return {
+    opp:"",
+    pitchers: ROSTER.map(freshPitcher),
+    curPitcher:0,
+    inningNo:1,
+    // current plate appearance (scratch state, lives on the game)
+    balls:0, strikes:0, paNormalP:0, paEEP:0, firstPitchDone:false, rispThisPA:false,
+    // base-out (current situation)
+    outs:0, missedOuts:0, bases:[false,false,false],
+    // game totals are now COMPUTED by summing pitchers — see gt()
+    innings:[freshInning(1)],
+    settings:{ limit:85, goal:60,
+      prob:{1:[.39,.26,.13], 2:[.61,.42,.23], 3:[.84,.67,.27]} }
+  };
+}
+let S = freshState();
+let HIST = [];
+
+const $ = id => document.getElementById(id);
+function snap(){ HIST.push(JSON.stringify(S)); if(HIST.length>60) HIST.shift(); }
+function curInn(){ return S.innings[S.innings.length-1]; }
+function P(){ return S.pitchers[S.curPitcher]; }            // current pitcher
+function gt(k){ return S.pitchers.reduce((a,p)=>a+(p[k]||0),0); } // game total = sum of splits
+function shouldBeOver(){ return (S.outs + S.missedOuts) >= 3 && S.outs < 3; }
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1400); }
+
+/* ---------- core mechanics ---------- */
+function startPA(){
+  S.balls=0; S.strikes=0; S.paNormalP=0; S.paEEP=0; S.firstPitchDone=false;
+  P().pa++;
+  S.rispThisPA = S.bases[1] || S.bases[2];
+}
+function logPitch(type){ // ball | strike | foul | inplay | hbp
+  const p=P();
+  p.pitches++; curInn().pitches++;
+  const ee = shouldBeOver();
+  if(ee){ S.paEEP++; curInn().eePitches++; p.eePitches++; } else { S.paNormalP++; }
+  if(!S.firstPitchDone){
+    S.firstPitchDone=true; p.firstPitchesSeen++;
+    if(type==='strike'||type==='foul'||type==='inplay') p.fps++;
+  }
+  if(type==='strike'||type==='foul'||type==='inplay') p.strikesThrown++;
+  if(type==='ball') S.balls++;
+  else if(type==='strike') S.strikes++;
+  else if(type==='foul'){ if(S.strikes<2) S.strikes++; }
+}
+function addOut(){ S.outs++; }
+function clearBases(){ S.bases=[false,false,false]; }
+function runnersOn(){ return S.bases.filter(Boolean).length; }
+function scoreRun(n){ P().actualR+=n; curInn().runs+=n; }
+function addRunnerXR(base){ // base 1..3, uses outs at moment of reaching
+  const v = S.settings.prob[base][Math.min(S.outs,2)] || 0;
+  P().xR += v; curInn().xR += v;
+}
+function placeBatter(base){ S.bases[base-1]=true; addRunnerXR(base); }
+function forceAdvance(){ // walk / HBP forced push
+  if(S.bases[0]){ if(S.bases[1]){ if(S.bases[2]){ scoreRun(1); } S.bases[2]=true; } S.bases[1]=true; }
+  S.bases[0]=true; addRunnerXR(1);
+}
+function finalizePA(){
+  if(S.outs>=3){ rollInning(); }
+  startPA();
+}
+function rollInning(){
+  S.inningNo++; S.innings.push(freshInning(S.inningNo));
+  S.outs=0; S.missedOuts=0; clearBases();
+}
+
+/* ---------- public actions ---------- */
+const A = {
+  pitch(type){ snap();
+    logPitch(type);
+    if(type==='ball' && S.balls>=4){ this.resolve('BB',true); return; }
+    if(type==='strike' && S.strikes>=3){ this.resolve('K',true); return; }
+    render();
+  },
+  resolve(o, fromCount){ snap();
+    const p=P();
+    const contact = ['OUT','1B','2B','3B','HR','FC','ROE'].includes(o);
+    if(contact && !fromCount) logPitch('inplay');
+    if(o==='HBP' && !fromCount) logPitch('hbp');
+
+    let abType=true, hit=false;
+    if(o==='BB'){ p.walks++; curInn().walks++; curInn().walkPitches += S.paNormalP; p.walkPitches += S.paNormalP; forceAdvance(); abType=false; }
+    else if(o==='HBP'){ forceAdvance(); abType=false; }
+    else if(o==='K'){ addOut(); }
+    else if(o==='OUT'){ addOut(); }
+    else if(o==='FC'){ placeBatter(1); addOut(); }
+    else if(o==='ROE'){ curInn().errors++; S.missedOuts++; placeBatter(1); }
+    else if(o==='1B'){ hit=true; p.hits++; placeBatter(1); }
+    else if(o==='2B'){ hit=true; p.hits++; placeBatter(2); }
+    else if(o==='3B'){ hit=true; p.hits++; placeBatter(3); }
+    else if(o==='HR'){ hit=true; p.hits++; const r=1+runnersOn(); scoreRun(r); clearBases(); p.xR+=1; curInn().xR+=1; }
+
+    if(abType) p.ab++;
+    if(S.rispThisPA){ if(abType) p.rispAB++; if(hit) p.rispH++; }
+
+    finalizePA(); render();
+    if(o==='HR') toast("💥 Home run logged");
+  },
+  run(){ snap(); scoreRun(1); render(); toast("Run scored — tap a base to clear the runner"); },
+  fieldErr(){ snap(); curInn().errors++; S.missedOuts++; render(); toast("Error logged — extra pitches now tracked"); },
+  outManual(){ snap(); addOut(); if(S.outs>=3){ rollInning(); startPA(); } render(); },
+  endInning(){ snap();
+    rollInning(); startPA(); render(); toast("New inning");
+  },
+  toggleBase(i){ snap(); S.bases[i]=!S.bases[i]; render(); },
+  setPitcher(i){ snap(); S.curPitcher=+i; render(); },
+  undo(){ if(!HIST.length){ toast("Nothing to undo"); return; } S=JSON.parse(HIST.pop()); render(); toast("Undone"); },
+  reset(){ if(confirm("Reset the whole game? This clears all data.")){ S=freshState(); HIST=[]; readControls(); render(); } },
+  copySummary(){
+    const TP=gt('pitches'), TS=gt('strikesThrown'), TFPSseen=gt('firstPitchesSeen'), TFPS=gt('fps'),
+          TBB=gt('walks'), TxR=gt('xR'), TR=gt('actualR'), TrispAB=gt('rispAB'), TrispH=gt('rispH');
+    const eBB=S.innings.reduce((a,i)=>a+i.walkPitches,0);
+    const eEE=S.innings.reduce((a,i)=>a+i.eePitches,0);
+    const fps=TFPSseen?(100*TFPS/TFPSseen).toFixed(0):"–";
+    const sp=TP?(100*TS/TP).toFixed(0):"–";
+    const baR=TrispAB?(TrispH/TrispAB).toFixed(3).replace(/^0/,""):".000";
+    let txt=`NOVA Premier 13U vs ${S.opp||"opponent"}\n`+
+      `Pitches: ${TP} | Strike%: ${sp}% | FPS%: ${fps}%\n`+
+      `Walks: ${TBB} | Extra pitches: ${eBB+eEE} (${eBB} walks / ${eEE} errors)\n`+
+      `BA/RISP against: ${baR} (${TrispH}-${TrispAB})\n`+
+      `Expected runs: ${TxR.toFixed(1)} | Actual: ${TR} | Diff: ${(TR-TxR>=0?"+":"")}${(TR-TxR).toFixed(1)}\n`;
+    const appeared=S.pitchers.filter(p=>p.pitches>0);
+    if(appeared.length){
+      txt+=`\nPitcher splits (P / S% / FPS% / BB / +P / xR / R):\n`+
+        appeared.map(p=>{
+          const s=p.pitches?(100*p.strikesThrown/p.pitches).toFixed(0):"–";
+          const f=p.firstPitchesSeen?(100*p.fps/p.firstPitchesSeen).toFixed(0):"–";
+          return `  ${p.name.split(',')[0]}: ${p.pitches} / ${s}% / ${f}% / ${p.walks} / ${p.walkPitches+p.eePitches} / ${p.xR.toFixed(1)} / ${p.actualR}`;
+        }).join("\n")+"\n";
+    }
+    txt+=`\nBy inning (Inn: P / BB / Err / +P / xR / R):\n`+
+      S.innings.map(i=>`  ${i.no}: ${i.pitches} / ${i.walks} / ${i.errors} / ${i.walkPitches+i.eePitches} / ${i.xR.toFixed(1)} / ${i.runs}`).join("\n");
+    navigator.clipboard?.writeText(txt).then(()=>toast("Summary copied"),()=>toast("Copy failed"));
+  }
+};
+
+/* ---------- read editable controls into state ---------- */
+function readControls(){
+  $("opp").value = S.opp;
+  $("setLimit").value = S.settings.limit;
+  $("setGoal").value = S.settings.goal;
+  // pitcher dropdown
+  const sel=$("pitcher"); sel.innerHTML="";
+  S.pitchers.forEach((p,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=`#${p.num} ${p.name}`; sel.appendChild(o); });
+  sel.value=S.curPitcher;
+  // prob inputs
+  document.querySelectorAll(".probtbl input").forEach(inp=>{
+    inp.value = S.settings.prob[inp.dataset.b][+inp.dataset.o];
+  });
+}
+$("opp").addEventListener("input",e=>S.opp=e.target.value);
+$("pitcher").addEventListener("change",e=>A.setPitcher(e.target.value));
+$("setLimit").addEventListener("input",e=>{S.settings.limit=+e.target.value||85; render();});
+$("setGoal").addEventListener("input",e=>{S.settings.goal=+e.target.value||60; render();});
+document.querySelectorAll(".probtbl input").forEach(inp=>{
+  inp.addEventListener("input",e=>{ S.settings.prob[inp.dataset.b][+inp.dataset.o]=parseFloat(e.target.value)||0; });
+});
+$("b1").addEventListener("click",()=>A.toggleBase(0));
+$("b2").addEventListener("click",()=>A.toggleBase(1));
+$("b3").addEventListener("click",()=>A.toggleBase(2));
+
+// One delegated listener handles every action button (survives strict CSP
+// that blocks inline onclick="" attributes in sandboxed previews).
+document.addEventListener("click", e=>{
+  const el = e.target.closest("[data-act]");
+  if(!el) return;
+  const fn = A[el.getAttribute("data-act")];
+  if(typeof fn === "function") fn.call(A, el.getAttribute("data-arg"));
+});
+
+/* ---------- render: state -> screen ---------- */
+function render(){
+  // Game totals are derived by summing the splits — single source of truth stays per-pitcher.
+  const TP=gt('pitches'), TS=gt('strikesThrown'), TFPSseen=gt('firstPitchesSeen'),
+        TFPS=gt('fps'), TBB=gt('walks'), TxR=gt('xR'), TR=gt('actualR'),
+        TrispAB=gt('rispAB'), TrispH=gt('rispH');
+
+  $("inningNo").textContent=S.inningNo;
+  $("balls").textContent=S.balls;
+  $("strikes").textContent=S.strikes;
+  [1,2,3].forEach(n=>$("o"+n).classList.toggle("on", S.outs>=n));
+  $("b1").classList.toggle("on",S.bases[0]);
+  $("b2").classList.toggle("on",S.bases[1]);
+  $("b3").classList.toggle("on",S.bases[2]);
+  $("rispFlag").classList.toggle("on", S.rispThisPA);
+
+  // current pitcher count + warning colors
+  const pc=P().pitches;
+  $("pcount").textContent=pc;
+  const wrap=$("pcountWrap"); wrap.classList.remove("warn","over");
+  if(pc>=S.settings.limit) wrap.classList.add("over");
+  else if(pc>=S.settings.limit-15) wrap.classList.add("warn");
+
+  // FPS (game)
+  const fpsPct = TFPSseen? (100*TFPS/TFPSseen):0;
+  $("fpsPct").textContent = TFPSseen? fpsPct.toFixed(0):"–";
+  $("fpsRaw").textContent = `${TFPS}/${TFPSseen}`;
+  $("fpsGoalTxt").textContent = S.settings.goal;
+  $("fpsBar").style.width = Math.min(100,fpsPct)+"%";
+  $("fpsBar").style.background = fpsPct>=S.settings.goal? "var(--strike)" : fpsPct>=50? "var(--ball)":"var(--hit)";
+  const cf=$("cardFPS"); cf.classList.remove("good","bad"); if(TFPSseen) cf.classList.add(fpsPct>=S.settings.goal?"good":"bad");
+
+  // strike %
+  const sp = TP? (100*TS/TP):0;
+  $("strikePct").innerHTML = (TP? sp.toFixed(0):"–")+'<span style="font-size:1rem">%</span>';
+  $("strikeRaw").textContent=`${TS}/${TP}`;
+  $("strikeBar").style.width=Math.min(100,sp)+"%";
+
+  // walks
+  $("walks").textContent=TBB;
+  $("bbInn").textContent=(TBB/Math.max(1,S.inningNo)).toFixed(2);
+
+  // extra pitches
+  const eBB=S.innings.reduce((a,i)=>a+i.walkPitches,0);
+  const eEE=S.innings.reduce((a,i)=>a+i.eePitches,0);
+  $("extraP").textContent=eBB+eEE;
+  $("extraBB").textContent=eBB; $("extraEE").textContent=eEE;
+
+  // RISP
+  $("rispBA").textContent = TrispAB? (TrispH/TrispAB).toFixed(3).replace(/^0/,"") : ".000";
+  $("rispRaw").textContent=`${TrispH}-${TrispAB}`;
+
+  // pitches/inning
+  $("ppi").textContent=(TP/Math.max(1,S.inningNo)).toFixed(1);
+
+  // expected vs actual (game)
+  $("xrExp").textContent=TxR.toFixed(1);
+  $("xrAct").textContent=TR;
+  const diff=TR-TxR;
+  const dEl=$("xrDiff");
+  if(Math.abs(diff)<0.5) dEl.innerHTML='≈ <b>Right on expectation</b> — runs allowed match the traffic';
+  else if(diff>0) dEl.innerHTML=`<b style="color:var(--hit)">+${diff.toFixed(1)} over expected</b> — gave up more than the situations should`;
+  else dEl.innerHTML=`<b style="color:var(--strike)">${diff.toFixed(1)} under expected</b> — stranding runners / strong defense`;
+
+  // inning graph (expected vs actual bars)
+  const maxv=Math.max(1.5, ...S.innings.map(i=>Math.max(i.xR,i.runs)));
+  $("inngraph").innerHTML = S.innings.map(i=>{
+    const eh=Math.max(2,(i.xR/maxv)*46), ah=Math.max(2,(i.runs/maxv)*46);
+    return `<div class="inncol"><div class="pair"><i class="e" style="height:${eh}px"></i><i class="a" style="height:${ah}px"></i></div><div class="lab">${i.no}</div></div>`;
+  }).join("");
+
+  // pitcher splits table (only pitchers who've appeared)
+  const appeared = S.pitchers.map((p,i)=>({p,i})).filter(o=>o.p.pitches>0);
+  const pbody=$("pitcherBody");
+  if(!appeared.length){
+    pbody.innerHTML=`<tr><td colspan="8" class="faint" style="padding:14px;text-align:center">No pitches logged yet — pick a pitcher and start tracking.</td></tr>`;
+  } else {
+    pbody.innerHTML = appeared.map(({p,i})=>{
+      const ps=p.pitches? (100*p.strikesThrown/p.pitches).toFixed(0):"–";
+      const pf=p.firstPitchesSeen? (100*p.fps/p.firstPitchesSeen).toFixed(0):"–";
+      const xp=p.walkPitches+p.eePitches;
+      const dd=p.actualR-p.xR;
+      const ddc = Math.abs(dd)<0.5? "var(--ink)" : dd>0? "var(--hit)":"var(--strike)";
+      const live = i===S.curPitcher;
+      const over = p.pitches>=S.settings.limit, warnP = !over && p.pitches>=S.settings.limit-15;
+      const pcol = over? "var(--warn)" : warnP? "var(--ball)" : "var(--ink)";
+      return `<tr class="${live?'live':''}"><td class="l">${live?'▸ ':''}${p.name.split(',')[0]}</td>`+
+        `<td style="color:${pcol}">${p.pitches}</td><td>${ps}</td><td>${pf}</td><td>${p.walks}</td>`+
+        `<td style="color:var(--ball)">${xp}</td><td style="color:var(--foul)">${p.xR.toFixed(1)}</td>`+
+        `<td style="color:${ddc}">${p.actualR}</td></tr>`;
+    }).join("");
+  }
+
+  // inning table
+  const tb=$("innBody");
+  tb.innerHTML = S.innings.map(i=>
+    `<tr><td class="l">${i.no}</td><td>${i.pitches}</td><td>${i.walks}</td><td>${i.errors}</td><td style="color:var(--ball)">${i.walkPitches+i.eePitches}</td><td style="color:var(--foul)">${i.xR.toFixed(1)}</td><td style="color:var(--hit)">${i.runs}</td></tr>`
+  ).join("") +
+    `<tr class="tot"><td class="l">Tot</td><td>${TP}</td><td>${TBB}</td><td>${S.innings.reduce((a,i)=>a+i.errors,0)}</td><td>${eBB+eEE}</td><td>${TxR.toFixed(1)}</td><td>${TR}</td></tr>`;
+}
+
+/* ---------- boot ---------- */
+function showError(msg){
+  try{ document.body.insertAdjacentHTML("afterbegin",
+    '<div style="background:#7a1620;color:#fff;padding:12px;font:13px/1.4 monospace;position:sticky;top:0;z-index:999">⚠ Tracker error — '+msg+'</div>');
+  }catch(_){}
+}
+window.addEventListener("error", ev=> showError(ev.message));
+try{
+  startPA();          // begin first plate appearance
+  readControls();     // populate roster dropdown + settings
+  render();           // first paint
+}catch(err){ showError(err.message); }
+</script>
+</body>
+</html>
