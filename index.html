@@ -110,6 +110,25 @@
   .qb.run{background:var(--strike-d);color:#dffbe9;border-color:#2c8f57}
   .qb.undo{background:var(--navy-800)}
 
+  /* pitch-type selector */
+  .ptbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:stretch}
+  .ptpill{flex:1 1 auto;min-width:46px;padding:11px 4px;border-radius:9px;font-weight:700;font-size:.82rem;
+    background:var(--navy-850);border:1px solid var(--line);color:var(--ink-dim)}
+  .ptpill.on{background:var(--foul);border-color:#8fb4ff;color:#fff}
+  .ptpill.offon{background:var(--navy-700);color:var(--ink);border-color:var(--ink-faint)}
+  .mphin{flex:0 0 60px;width:60px;text-align:center;background:var(--navy-850);border:1px solid var(--line);
+    color:var(--ink);border-radius:9px;padding:11px 4px;font-family:var(--mono);font-size:.9rem}
+  .mphin::placeholder{color:var(--ink-faint)}
+
+  /* team switcher + roster editor */
+  .teamsel{font-weight:700;font-size:.82rem;max-width:46%;color:var(--strike);border-color:var(--strike-d)}
+  .rrow{display:flex;gap:7px;margin-bottom:7px;align-items:center}
+  .rrow input{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px;font-size:.88rem}
+  .rnum{width:46px;text-align:center;font-family:var(--mono);flex:0 0 46px}
+  .rname{flex:1 1 auto;min-width:0}
+  .rdel{flex:0 0 40px;width:40px;padding:9px 0;border-radius:8px;background:#3a1414;border:1px solid #6a2020;color:#ffd2d2;font-weight:700}
+  .radd{flex:0 0 46px;width:46px;padding:9px 0;border-radius:8px;background:var(--strike-d);border:1px solid #2c8f57;color:#dffbe9;font-weight:800;font-size:1.1rem}
+
   /* ---------- Dashboard ---------- */
   .dash{padding:0 var(--pad)}
   .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:6px}
@@ -178,7 +197,7 @@
 
 <header>
   <div class="hrow">
-    <span class="badge">NOVA · 13U</span>
+    <select id="team" class="teamsel"></select>
     <input id="opp" placeholder="Opponent…" />
     <span class="muted tnum" style="font-size:.8rem">Inn <b id="inningNo" style="color:var(--ink)">1</b></span>
   </div>
@@ -207,6 +226,18 @@
       <div class="risp-flag" id="rispFlag">RISP</div>
     </div>
     <div class="bs strikes"><div class="big tnum" id="strikes">0</div><div class="lab">STRIKES</div></div>
+  </div>
+
+  <div class="seclab" style="margin:4px 2px 7px">PITCH TYPE <span class="faint" style="font-weight:400;letter-spacing:0;text-transform:none">· optional · stays selected until changed</span></div>
+  <div class="ptbar">
+    <button class="ptpill" data-act="setType" data-arg="OFF">OFF</button>
+    <button class="ptpill" data-act="setType" data-arg="FB">FB</button>
+    <button class="ptpill" data-act="setType" data-arg="CB">CB</button>
+    <button class="ptpill" data-act="setType" data-arg="CT">CT</button>
+    <button class="ptpill" data-act="setType" data-arg="SL">SL</button>
+    <button class="ptpill" data-act="setType" data-arg="CH">CH</button>
+    <button class="ptpill" data-act="setType" data-arg="OS">OS</button>
+    <input id="mph" class="mphin" inputmode="numeric" placeholder="MPH" />
   </div>
 
   <div class="pitchbtns">
@@ -285,6 +316,14 @@
     </div>
   </div>
 
+  <div class="seclab">PITCH MIX — <span id="ptPitcher" style="color:var(--ink-dim)">—</span></div>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table id="ptTbl">
+      <thead><tr><th class="l">Pitch</th><th>#</th><th>Mix%</th><th>Strike%</th><th>MPH avg/top</th></tr></thead>
+      <tbody id="ptBody"></tbody>
+    </table>
+  </div>
+
   <div class="seclab">PITCHER SPLITS</div>
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
     <table id="pitcherTbl">
@@ -298,6 +337,27 @@
     <thead><tr><th class="l">Inn</th><th>P</th><th>BB</th><th>Err</th><th>+P</th><th>xR</th><th>R</th></tr></thead>
     <tbody id="innBody"></tbody>
   </table>
+
+  <details>
+    <summary>TEAMS & ROSTER</summary>
+    <div class="setbody">
+      <div class="setrow"><span>Team name</span><input id="teamName" style="width:auto;flex:1;margin-left:12px;text-align:left"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="qb" style="flex:1;padding:12px" data-act="addTeam">＋ ADD TEAM</button>
+        <button class="qb" style="flex:1;padding:12px;background:#3a1414;border-color:#6a2020;color:#ffd2d2" data-act="delTeam">DELETE TEAM</button>
+      </div>
+      <div class="seclab" style="margin:16px 2px 8px">ROSTER · PITCHERS</div>
+      <div id="rosterEdit"></div>
+      <div class="rrow">
+        <input id="newNum" class="rnum" inputmode="numeric" placeholder="#">
+        <input id="newName" class="rname" placeholder="Last, First">
+        <button class="radd" data-act="addPitcher">＋</button>
+      </div>
+      <div class="faint" style="font-size:.72rem;margin-top:12px;line-height:1.5">
+        Switch teams from the dropdown at the top. Each team keeps its own roster, game, and stats — and everything saves to this device automatically, so your roster is here next time.
+      </div>
+    </div>
+  </details>
 
   <details>
     <summary>SETTINGS & MODEL ASSUMPTIONS</summary>
@@ -339,7 +399,7 @@
    data flow — the same mental model as React, just in plain JS.
    ===================================================================== */
 
-// Pitcher roster pulled from your season CSV (anyone with innings pitched)
+// NOVA Premier 13U roster (from your spring CSV)
 const ROSTER = [
   {num:12,name:"Comottor, Jon"}, {num:5,name:"Kingsland, Gavin"},
   {num:11,name:"Kupets, Ethan"}, {num:3,name:"Cook, Max"},
@@ -347,6 +407,17 @@ const ROSTER = [
   {num:9,name:"Walowac, Zach"}, {num:1,name:"Leach, Troy"},
   {num:6,name:"Larson, Christopher"}
 ];
+// NOVA Premier Orange 17U roster (from your summer CSV; some entries lacked a last name / number in GameChanger)
+const ROSTER_17U = [
+  {num:13,name:"Wantuck, Noah"}, {num:14,name:"Mingo, Blake"},
+  {num:23,name:"Flores, Erick"}, {num:20,name:"Lucas, Quincy"},
+  {num:24,name:"Munchel, Bryce"}, {num:3,name:"Liam"},
+  {num:13,name:"Calen"}, {num:22,name:"Ethan"},
+  {num:"",name:"Logan"}, {num:"",name:"Mason"}, {num:"",name:"Ethan"}
+];
+
+// Pitch types — codes match your GameChanger season sheet columns
+const PT = [["FB","Fastball"],["CB","Curve"],["CT","Cutter"],["SL","Slider"],["CH","Change"],["OS","Offspeed"]];
 
 function freshInning(no){
   return {no, pitches:0, walkPitches:0, eePitches:0, walks:0, errors:0, runs:0, xR:0};
@@ -354,15 +425,17 @@ function freshInning(no){
 function freshPitcher(p){
   // Each pitcher carries their own full stat line — splits are just
   // "attribute every event to whoever is currently on the mound."
+  const pt={}; PT.forEach(([c])=> pt[c]={n:0, s:0, mph:[]}); // per pitch type: thrown, strikes, velocities
   return {...p, pitches:0, strikesThrown:0, firstPitchesSeen:0, fps:0,
     pa:0, ab:0, hits:0, walks:0, rispAB:0, rispH:0,
-    xR:0, actualR:0, walkPitches:0, eePitches:0};
+    xR:0, actualR:0, walkPitches:0, eePitches:0, pt};
 }
-function freshState(){
+function freshGame(roster){
   return {
     opp:"",
-    pitchers: ROSTER.map(freshPitcher),
+    pitchers: (roster||[]).map(freshPitcher),
     curPitcher:0,
+    curType:null,            // selected pitch type (persists); null = tagging off
     inningNo:1,
     // current plate appearance (scratch state, lives on the game)
     balls:0, strikes:0, paNormalP:0, paEEP:0, firstPitchDone:false, rispThisPA:false,
@@ -374,9 +447,36 @@ function freshState(){
       prob:{1:[.39,.26,.13], 2:[.61,.42,.23], 3:[.84,.67,.27]} }
   };
 }
-let S = freshState();
-let HIST = [];
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function freshTeam(name, roster){ return { id:uid(), name, game:freshGame(roster), hist:[] }; }
 
+// Forward-compat: make sure a loaded game has every field this version expects.
+function normalizeGame(g){
+  if(!g) return freshGame([]);
+  if(g.curType===undefined) g.curType=null;
+  (g.pitchers||[]).forEach(p=>{ if(!p.pt){ p.pt={}; PT.forEach(([c])=>p.pt[c]={n:0,s:0,mph:[]}); } });
+  return g;
+}
+
+// ---------- the whole app: many teams, one active ----------
+let APP, S, HIST;
+function persist(){
+  try{ localStorage.setItem("npt_app_v2", JSON.stringify({
+    active:APP.active, teams:APP.teams.map(t=>({id:t.id,name:t.name,game:t.game})) // hist is session-only
+  })); }catch(_){}
+}
+function loadApp(){
+  try{
+    const j=localStorage.getItem("npt_app_v2");
+    if(j){ const o=JSON.parse(j);
+      APP={ active:o.active||0, teams:(o.teams||[]).map(t=>({id:t.id||uid(),name:t.name,game:normalizeGame(t.game),hist:[]})) };
+      if(APP.teams.length) return true;
+    }
+  }catch(_){}
+  return false;
+}
+function activate(i){ APP.active=i; S=APP.teams[i].game; HIST=APP.teams[i].hist;
+  if(S.curPitcher>=S.pitchers.length) S.curPitcher=Math.max(0,S.pitchers.length-1); }
 const $ = id => document.getElementById(id);
 function snap(){ HIST.push(JSON.stringify(S)); if(HIST.length>60) HIST.shift(); }
 function curInn(){ return S.innings[S.innings.length-1]; }
@@ -388,7 +488,7 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("sho
 /* ---------- core mechanics ---------- */
 function startPA(){
   S.balls=0; S.strikes=0; S.paNormalP=0; S.paEEP=0; S.firstPitchDone=false;
-  P().pa++;
+  if(P()) P().pa++;
   S.rispThisPA = S.bases[1] || S.bases[2];
 }
 function logPitch(type){ // ball | strike | foul | inplay | hbp
@@ -400,7 +500,15 @@ function logPitch(type){ // ball | strike | foul | inplay | hbp
     S.firstPitchDone=true; p.firstPitchesSeen++;
     if(type==='strike'||type==='foul'||type==='inplay') p.fps++;
   }
-  if(type==='strike'||type==='foul'||type==='inplay') p.strikesThrown++;
+  const strikey = (type==='strike'||type==='foul'||type==='inplay');
+  if(strikey) p.strikesThrown++;
+  // optional pitch-type tagging — only when a type is selected
+  if(S.curType && p.pt[S.curType]){
+    const t=p.pt[S.curType];
+    t.n++; if(strikey) t.s++;
+    const el=$("mph"); const v= el? parseFloat(el.value):NaN;
+    if(!isNaN(v)){ t.mph.push(v); if(el) el.value=""; }   // velocity attaches to this one pitch, then clears
+  }
   if(type==='ball') S.balls++;
   else if(type==='strike') S.strikes++;
   else if(type==='foul'){ if(S.strikes<2) S.strikes++; }
@@ -429,13 +537,13 @@ function rollInning(){
 
 /* ---------- public actions ---------- */
 const A = {
-  pitch(type){ snap();
+  pitch(type){ if(!P()){ toast("Add a pitcher first — Settings ▸ Teams & Roster"); return; } snap();
     logPitch(type);
     if(type==='ball' && S.balls>=4){ this.resolve('BB',true); return; }
     if(type==='strike' && S.strikes>=3){ this.resolve('K',true); return; }
     render();
   },
-  resolve(o, fromCount){ snap();
+  resolve(o, fromCount){ if(!P()){ toast("Add a pitcher first — Settings ▸ Teams & Roster"); return; } snap();
     const p=P();
     const contact = ['OUT','1B','2B','3B','HR','FC','ROE'].includes(o);
     if(contact && !fromCount) logPitch('inplay');
@@ -467,8 +575,33 @@ const A = {
   },
   toggleBase(i){ snap(); S.bases[i]=!S.bases[i]; render(); },
   setPitcher(i){ snap(); S.curPitcher=+i; render(); },
-  undo(){ if(!HIST.length){ toast("Nothing to undo"); return; } S=JSON.parse(HIST.pop()); render(); toast("Undone"); },
-  reset(){ if(confirm("Reset the whole game? This clears all data.")){ S=freshState(); HIST=[]; readControls(); render(); } },
+  setType(t){ snap(); S.curType = (t==='OFF'? null : t); render(); },
+  undo(){ if(!HIST.length){ toast("Nothing to undo"); return; }
+    const g=JSON.parse(HIST.pop()); APP.teams[APP.active].game=g; S=g; render(); toast("Undone"); },
+  reset(){ if(confirm("Reset this team's game? Keeps the roster, clears all stats.")){
+    const roster=S.pitchers.map(p=>({num:p.num,name:p.name}));
+    const g=freshGame(roster); APP.teams[APP.active].game=g; S=g;
+    APP.teams[APP.active].hist=[]; HIST=APP.teams[APP.active].hist;
+    readControls(); render(); } },
+
+  // ---- team management ----
+  switchTeam(i){ activate(+i); readControls(); render(); persist(); },
+  addTeam(){ const name=prompt("New team name:","New Team"); if(name===null) return;
+    APP.teams.push(freshTeam(name||("Team "+(APP.teams.length+1)), []));
+    activate(APP.teams.length-1); readControls(); render(); persist();
+    toast("Team added — add its pitchers below"); },
+  delTeam(){ if(APP.teams.length<=1){ toast("Keep at least one team"); return; }
+    if(!confirm('Delete team "'+APP.teams[APP.active].name+'" and all its data?')) return;
+    APP.teams.splice(APP.active,1); activate(0); readControls(); render(); persist(); },
+  addPitcher(){ const nm=$("newName").value.trim(); if(!nm){ toast("Enter a pitcher name"); return; }
+    const raw=$("newNum").value.trim(); const num = raw===""? "" : (parseInt(raw)||0); snap();
+    S.pitchers.push(freshPitcher({num,name:nm}));
+    $("newName").value=""; $("newNum").value=""; render(); persist(); },
+  delPitcher(i){ i=+i; const p=S.pitchers[i]; if(!p) return;
+    if(p.pitches>0 && !confirm("Remove "+p.name+"? Their logged data will be lost.")) return;
+    snap(); S.pitchers.splice(i,1);
+    if(S.curPitcher>=S.pitchers.length) S.curPitcher=Math.max(0,S.pitchers.length-1);
+    render(); persist(); },
   copySummary(){
     const TP=gt('pitches'), TS=gt('strikesThrown'), TFPSseen=gt('firstPitchesSeen'), TFPS=gt('fps'),
           TBB=gt('walks'), TxR=gt('xR'), TR=gt('actualR'), TrispAB=gt('rispAB'), TrispH=gt('rispH');
@@ -477,7 +610,7 @@ const A = {
     const fps=TFPSseen?(100*TFPS/TFPSseen).toFixed(0):"–";
     const sp=TP?(100*TS/TP).toFixed(0):"–";
     const baR=TrispAB?(TrispH/TrispAB).toFixed(3).replace(/^0/,""):".000";
-    let txt=`NOVA Premier 13U vs ${S.opp||"opponent"}\n`+
+    let txt=`${APP.teams[APP.active].name} vs ${S.opp||"opponent"}\n`+
       `Pitches: ${TP} | Strike%: ${sp}% | FPS%: ${fps}%\n`+
       `Walks: ${TBB} | Extra pitches: ${eBB+eEE} (${eBB} walks / ${eEE} errors)\n`+
       `BA/RISP against: ${baR} (${TrispH}-${TrispAB})\n`+
@@ -490,6 +623,20 @@ const A = {
           const f=p.firstPitchesSeen?(100*p.fps/p.firstPitchesSeen).toFixed(0):"–";
           return `  ${p.name.split(',')[0]}: ${p.pitches} / ${s}% / ${f}% / ${p.walks} / ${p.walkPitches+p.eePitches} / ${p.xR.toFixed(1)} / ${p.actualR}`;
         }).join("\n")+"\n";
+      const tagged=appeared.filter(p=>PT.some(([c])=>p.pt[c].n>0));
+      if(tagged.length){
+        txt+=`\nPitch mix (type usage% / strike% [avg mph]):\n`+
+          tagged.map(p=>{
+            const tot=PT.reduce((a,[c])=>a+p.pt[c].n,0);
+            const parts=PT.filter(([c])=>p.pt[c].n>0).map(([c])=>{
+              const t=p.pt[c];
+              const mix=(100*t.n/tot).toFixed(0), kp=(100*t.s/t.n).toFixed(0);
+              const avg=t.mph.length? ` ${(t.mph.reduce((x,y)=>x+y,0)/t.mph.length).toFixed(0)}mph`:"";
+              return `${c} ${mix}%/${kp}%K${avg}`;
+            });
+            return `  ${p.name.split(',')[0]}: ${parts.join(", ")}`;
+          }).join("\n")+"\n";
+      }
     }
     txt+=`\nBy inning (Inn: P / BB / Err / +P / xR / R):\n`+
       S.innings.map(i=>`  ${i.no}: ${i.pitches} / ${i.walks} / ${i.errors} / ${i.walkPitches+i.eePitches} / ${i.xR.toFixed(1)} / ${i.runs}`).join("\n");
@@ -499,19 +646,27 @@ const A = {
 
 /* ---------- read editable controls into state ---------- */
 function readControls(){
+  // team switcher
+  const tsel=$("team"); tsel.innerHTML="";
+  APP.teams.forEach((t,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=t.name||("Team "+(i+1)); tsel.appendChild(o); });
+  tsel.value=APP.active;
+  $("teamName").value = APP.teams[APP.active].name || "";
+  // game controls
   $("opp").value = S.opp;
   $("setLimit").value = S.settings.limit;
   $("setGoal").value = S.settings.goal;
   // pitcher dropdown
   const sel=$("pitcher"); sel.innerHTML="";
-  S.pitchers.forEach((p,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=`#${p.num} ${p.name}`; sel.appendChild(o); });
+  S.pitchers.forEach((p,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=(p.num!==""&&p.num!=null? "#"+p.num+" ":"")+p.name; sel.appendChild(o); });
   sel.value=S.curPitcher;
   // prob inputs
   document.querySelectorAll(".probtbl input").forEach(inp=>{
     inp.value = S.settings.prob[inp.dataset.b][+inp.dataset.o];
   });
 }
-$("opp").addEventListener("input",e=>S.opp=e.target.value);
+$("team").addEventListener("change",e=>A.switchTeam(e.target.value));
+$("teamName").addEventListener("input",e=>{ APP.teams[APP.active].name=e.target.value; const ts=$("team"); if(ts.options[APP.active]) ts.options[APP.active].text=e.target.value; persist(); });
+$("opp").addEventListener("input",e=>{S.opp=e.target.value; persist();});
 $("pitcher").addEventListener("change",e=>A.setPitcher(e.target.value));
 $("setLimit").addEventListener("input",e=>{S.settings.limit=+e.target.value||85; render();});
 $("setGoal").addEventListener("input",e=>{S.settings.goal=+e.target.value||60; render();});
@@ -531,6 +686,15 @@ document.addEventListener("click", e=>{
   if(typeof fn === "function") fn.call(A, el.getAttribute("data-arg"));
 });
 
+// Delegated input handler for the dynamic roster editor rows.
+document.addEventListener("input", e=>{
+  const el=e.target; if(!el.dataset || el.dataset.ridx==null) return;
+  const i=+el.dataset.ridx; if(!S.pitchers[i]) return;
+  if(el.dataset.rf==="num") S.pitchers[i].num = el.value.trim()===""? "" : (parseInt(el.value)||0);
+  else S.pitchers[i].name = el.value;
+  persist(); // don't re-render (would steal focus mid-type); names propagate on next action
+});
+
 /* ---------- render: state -> screen ---------- */
 function render(){
   // Game totals are derived by summing the splits — single source of truth stays per-pitcher.
@@ -548,7 +712,8 @@ function render(){
   $("rispFlag").classList.toggle("on", S.rispThisPA);
 
   // current pitcher count + warning colors
-  const pc=P().pitches;
+  if(S.curPitcher>=S.pitchers.length) S.curPitcher=Math.max(0,S.pitchers.length-1);
+  const pc = P()? P().pitches : 0;
   $("pcount").textContent=pc;
   const wrap=$("pcountWrap"); wrap.classList.remove("warn","over");
   if(pc>=S.settings.limit) wrap.classList.add("over");
@@ -602,6 +767,44 @@ function render(){
     return `<div class="inncol"><div class="pair"><i class="e" style="height:${eh}px"></i><i class="a" style="height:${ah}px"></i></div><div class="lab">${i.no}</div></div>`;
   }).join("");
 
+  // pitch-type selector highlight (OFF when curType is null)
+  const active = S.curType || "OFF";
+  document.querySelectorAll(".ptpill").forEach(b=>{
+    const a=b.getAttribute("data-arg");
+    b.classList.toggle("on", a===active && a!=="OFF");
+    b.classList.toggle("offon", a==="OFF" && active==="OFF");
+  });
+
+  // pitch mix — current pitcher
+  const cp=P();
+  $("ptPitcher").textContent = cp? cp.name.split(",")[0] : "—";
+  const tagged = cp? PT.reduce((a,[c])=>a+cp.pt[c].n,0) : 0;
+  const ptb=$("ptBody");
+  if(!cp || !tagged){
+    ptb.innerHTML=`<tr><td colspan="5" class="faint" style="padding:14px;text-align:center">${cp? "Pitch tagging off — tap a pitch type above, then log pitches to build the mix." : "No pitcher selected."}</td></tr>`;
+  } else {
+    ptb.innerHTML = PT.filter(([c])=>cp.pt[c].n>0).map(([c,name])=>{
+      const t=cp.pt[c];
+      const mix=(100*t.n/tagged).toFixed(0);
+      const kp=t.n? (100*t.s/t.n).toFixed(0):"–";
+      const avg=t.mph.length? (t.mph.reduce((x,y)=>x+y,0)/t.mph.length).toFixed(0):null;
+      const top=t.mph.length? Math.max(...t.mph).toFixed(0):null;
+      const vel=avg? `${avg}/${top}` : "–";
+      const kcol = kp>=60? "var(--strike)" : kp>=45? "var(--ball)":"var(--hit)";
+      return `<tr><td class="l">${name}</td><td>${t.n}</td><td>${mix}%</td>`+
+        `<td style="color:${kcol}">${kp}%</td><td class="faint">${vel}</td></tr>`;
+    }).join("");
+  }
+
+  // roster editor rows (Teams & Roster panel)
+  $("rosterEdit").innerHTML = S.pitchers.map((p,i)=>
+    `<div class="rrow">`+
+      `<input class="rnum" data-ridx="${i}" data-rf="num" inputmode="numeric" value="${p.num??''}">`+
+      `<input class="rname" data-ridx="${i}" data-rf="name" value="${(p.name||'').replace(/"/g,'&quot;')}">`+
+      `<button class="rdel" data-act="delPitcher" data-arg="${i}">✕</button>`+
+    `</div>`).join("") ||
+    `<div class="faint" style="font-size:.78rem;padding:2px 0 4px">No pitchers yet — add one below.</div>`;
+
   // pitcher splits table (only pitchers who've appeared)
   const appeared = S.pitchers.map((p,i)=>({p,i})).filter(o=>o.p.pitches>0);
   const pbody=$("pitcherBody");
@@ -630,6 +833,8 @@ function render(){
     `<tr><td class="l">${i.no}</td><td>${i.pitches}</td><td>${i.walks}</td><td>${i.errors}</td><td style="color:var(--ball)">${i.walkPitches+i.eePitches}</td><td style="color:var(--foul)">${i.xR.toFixed(1)}</td><td style="color:var(--hit)">${i.runs}</td></tr>`
   ).join("") +
     `<tr class="tot"><td class="l">Tot</td><td>${TP}</td><td>${TBB}</td><td>${S.innings.reduce((a,i)=>a+i.errors,0)}</td><td>${eBB+eEE}</td><td>${TxR.toFixed(1)}</td><td>${TR}</td></tr>`;
+
+  persist(); // save the whole app to this device after every change
 }
 
 /* ---------- boot ---------- */
@@ -640,8 +845,16 @@ function showError(msg){
 }
 window.addEventListener("error", ev=> showError(ev.message));
 try{
+  // Load saved teams from this device, or seed: NOVA (from your CSV) + an empty 2nd team.
+  if(!loadApp()){
+    APP = { active:0, teams:[
+      freshTeam("NOVA Premier 13U", ROSTER),
+      freshTeam("NOVA Premier Orange 17U", ROSTER_17U)
+    ] };
+  }
+  activate(APP.active);
   startPA();          // begin first plate appearance
-  readControls();     // populate roster dropdown + settings
+  readControls();     // populate team + roster dropdowns + settings
   render();           // first paint
 }catch(err){ showError(err.message); }
 </script>
