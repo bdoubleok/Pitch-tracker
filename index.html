@@ -95,7 +95,14 @@
   .pb small{display:block;font-size:.6rem;font-weight:600;letter-spacing:1px;opacity:.7;margin-top:3px}
   .pb.ball{background:linear-gradient(180deg,var(--ball),var(--ball-d));color:#3a2400}
   .pb.strike{background:linear-gradient(180deg,var(--strike),var(--strike-d));color:#04230f}
+  .pb.called{background:linear-gradient(180deg,var(--strike),var(--strike-d));color:#04230f}
+  .pb.whiff{background:linear-gradient(180deg,#62f2a6,#15a559);color:#022a12;box-shadow:0 0 0 1px rgba(98,242,166,.45),0 0 14px rgba(98,242,166,.25)}
   .pb.foul{background:linear-gradient(180deg,var(--foul),#284a91);color:#eaf0ff}
+  /* grouped 2x2 pitch rows: position encodes swing, color encodes outcome */
+  .prow{display:flex;gap:9px;margin-bottom:9px;align-items:stretch}
+  .prow .pb{flex:1;padding:18px 8px}
+  .prowlab{flex:0 0 26px;display:flex;align-items:center;justify-content:center;font-size:.52rem;
+    letter-spacing:1px;color:var(--ink-faint);font-weight:700;writing-mode:vertical-rl;transform:rotate(180deg)}
 
   .seclab{font-size:.62rem;letter-spacing:2px;color:var(--ink-faint);margin:14px 2px 7px;font-weight:700}
   .outcomes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
@@ -240,9 +247,14 @@
     <input id="mph" class="mphin" inputmode="numeric" placeholder="MPH" />
   </div>
 
-  <div class="pitchbtns">
+  <div class="prow">
+    <span class="prowlab">TAKEN</span>
     <button class="pb ball" data-act="pitch" data-arg="ball">BALL</button>
-    <button class="pb strike" data-act="pitch" data-arg="strike">STRIKE<small>called / swing</small></button>
+    <button class="pb called" data-act="pitch" data-arg="called">CALLED<small>taken strike</small></button>
+  </div>
+  <div class="prow">
+    <span class="prowlab">SWUNG</span>
+    <button class="pb whiff" data-act="pitch" data-arg="whiff">WHIFF<small>swing &amp; miss</small></button>
     <button class="pb foul" data-act="pitch" data-arg="foul">FOUL</button>
   </div>
 
@@ -319,7 +331,7 @@
   <div class="seclab">PITCH MIX — <span id="ptPitcher" style="color:var(--ink-dim)">—</span></div>
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
     <table id="ptTbl">
-      <thead><tr><th class="l">Pitch</th><th>#</th><th>Mix%</th><th>Strike%</th><th>MPH avg/top</th></tr></thead>
+      <thead><tr><th class="l">Pitch</th><th>#</th><th>Mix%</th><th>Strike%</th><th>Whiff%</th><th>MPH avg/top</th></tr></thead>
       <tbody id="ptBody"></tbody>
     </table>
   </div>
@@ -333,10 +345,15 @@
   </div>
 
   <div class="seclab">BY INNING</div>
-  <table id="innTbl">
-    <thead><tr><th class="l">Inn</th><th>P</th><th>BB</th><th>Err</th><th>+P</th><th>xR</th><th>R</th></tr></thead>
-    <tbody id="innBody"></tbody>
-  </table>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table id="innTbl">
+      <thead><tr><th class="l">Inn</th><th>P</th><th>BB</th><th>Err</th><th>+W</th><th>+E</th><th>xR</th><th>R</th></tr></thead>
+      <tbody id="innBody"></tbody>
+    </table>
+  </div>
+  <div class="faint" style="font-size:.66rem;margin-top:6px;line-height:1.5">
+    <b style="color:var(--ball)">+W</b> = pitches thrown in walk at-bats · <b style="color:var(--ball)">+E</b> = pitches thrown after the inning should've ended (errors). Together they're your <b>extra pitches</b>.
+  </div>
 
   <details>
     <summary>TEAMS & ROSTER</summary>
@@ -425,9 +442,10 @@ function freshInning(no){
 function freshPitcher(p){
   // Each pitcher carries their own full stat line — splits are just
   // "attribute every event to whoever is currently on the mound."
-  const pt={}; PT.forEach(([c])=> pt[c]={n:0, s:0, mph:[]}); // per pitch type: thrown, strikes, velocities
+  const pt={}; PT.forEach(([c])=> pt[c]={n:0, s:0, sw:0, miss:0, mph:[]}); // thrown, strikes, swings, whiffs, velocities
   return {...p, pitches:0, strikesThrown:0, firstPitchesSeen:0, fps:0,
     pa:0, ab:0, hits:0, walks:0, rispAB:0, rispH:0,
+    swings:0, whiffs:0, strikeouts:0, kLook:0, kSwing:0,
     xR:0, actualR:0, walkPitches:0, eePitches:0, pt};
 }
 function freshGame(roster){
@@ -438,7 +456,7 @@ function freshGame(roster){
     curType:null,            // selected pitch type (persists); null = tagging off
     inningNo:1,
     // current plate appearance (scratch state, lives on the game)
-    balls:0, strikes:0, paNormalP:0, paEEP:0, firstPitchDone:false, rispThisPA:false,
+    balls:0, strikes:0, paNormalP:0, paEEP:0, firstPitchDone:false, rispThisPA:false, lastStrikeType:null,
     // base-out (current situation)
     outs:0, missedOuts:0, bases:[false,false,false],
     // game totals are now COMPUTED by summing pitchers — see gt()
@@ -454,7 +472,12 @@ function freshTeam(name, roster){ return { id:uid(), name, game:freshGame(roster
 function normalizeGame(g){
   if(!g) return freshGame([]);
   if(g.curType===undefined) g.curType=null;
-  (g.pitchers||[]).forEach(p=>{ if(!p.pt){ p.pt={}; PT.forEach(([c])=>p.pt[c]={n:0,s:0,mph:[]}); } });
+  (g.pitchers||[]).forEach(p=>{
+    ['swings','whiffs','strikeouts','kLook','kSwing'].forEach(k=>{ if(p[k]===undefined) p[k]=0; });
+    if(!p.pt){ p.pt={}; PT.forEach(([c])=>p.pt[c]={n:0,s:0,sw:0,miss:0,mph:[]}); }
+    else PT.forEach(([c])=>{ const t=p.pt[c]; if(!t) p.pt[c]={n:0,s:0,sw:0,miss:0,mph:[]};
+      else { if(t.sw===undefined)t.sw=0; if(t.miss===undefined)t.miss=0; } });
+  });
   return g;
 }
 
@@ -487,30 +510,34 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("sho
 
 /* ---------- core mechanics ---------- */
 function startPA(){
-  S.balls=0; S.strikes=0; S.paNormalP=0; S.paEEP=0; S.firstPitchDone=false;
+  S.balls=0; S.strikes=0; S.paNormalP=0; S.paEEP=0; S.firstPitchDone=false; S.lastStrikeType=null;
   if(P()) P().pa++;
   S.rispThisPA = S.bases[1] || S.bases[2];
 }
-function logPitch(type){ // ball | strike | foul | inplay | hbp
+function logPitch(type){ // ball | called | whiff | foul | inplay | hbp
   const p=P();
   p.pitches++; curInn().pitches++;
   const ee = shouldBeOver();
   if(ee){ S.paEEP++; curInn().eePitches++; p.eePitches++; } else { S.paNormalP++; }
+  const strikey = (type==='called'||type==='whiff'||type==='foul'||type==='inplay');
+  const swung   = (type==='whiff'||type==='foul'||type==='inplay');
   if(!S.firstPitchDone){
     S.firstPitchDone=true; p.firstPitchesSeen++;
-    if(type==='strike'||type==='foul'||type==='inplay') p.fps++;
+    if(strikey) p.fps++;
   }
-  const strikey = (type==='strike'||type==='foul'||type==='inplay');
   if(strikey) p.strikesThrown++;
+  if(swung) p.swings++;
+  if(type==='whiff') p.whiffs++;
+  if(type==='called'||type==='whiff') S.lastStrikeType=type;   // remembers how strike 3 was earned
   // optional pitch-type tagging — only when a type is selected
   if(S.curType && p.pt[S.curType]){
     const t=p.pt[S.curType];
-    t.n++; if(strikey) t.s++;
+    t.n++; if(strikey) t.s++; if(swung) t.sw++; if(type==='whiff') t.miss++;
     const el=$("mph"); const v= el? parseFloat(el.value):NaN;
     if(!isNaN(v)){ t.mph.push(v); if(el) el.value=""; }   // velocity attaches to this one pitch, then clears
   }
   if(type==='ball') S.balls++;
-  else if(type==='strike') S.strikes++;
+  else if(type==='called'||type==='whiff') S.strikes++;
   else if(type==='foul'){ if(S.strikes<2) S.strikes++; }
 }
 function addOut(){ S.outs++; }
@@ -540,7 +567,7 @@ const A = {
   pitch(type){ if(!P()){ toast("Add a pitcher first — Settings ▸ Teams & Roster"); return; } snap();
     logPitch(type);
     if(type==='ball' && S.balls>=4){ this.resolve('BB',true); return; }
-    if(type==='strike' && S.strikes>=3){ this.resolve('K',true); return; }
+    if((type==='called'||type==='whiff') && S.strikes>=3){ this.resolve('K',true); return; }
     render();
   },
   resolve(o, fromCount){ if(!P()){ toast("Add a pitcher first — Settings ▸ Teams & Roster"); return; } snap();
@@ -552,7 +579,7 @@ const A = {
     let abType=true, hit=false;
     if(o==='BB'){ p.walks++; curInn().walks++; curInn().walkPitches += S.paNormalP; p.walkPitches += S.paNormalP; forceAdvance(); abType=false; }
     else if(o==='HBP'){ forceAdvance(); abType=false; }
-    else if(o==='K'){ addOut(); }
+    else if(o==='K'){ p.strikeouts++; if(S.lastStrikeType==='called') p.kLook++; else if(S.lastStrikeType==='whiff') p.kSwing++; addOut(); }
     else if(o==='OUT'){ addOut(); }
     else if(o==='FC'){ placeBatter(1); addOut(); }
     else if(o==='ROE'){ curInn().errors++; S.missedOuts++; placeBatter(1); }
@@ -625,14 +652,15 @@ const A = {
         }).join("\n")+"\n";
       const tagged=appeared.filter(p=>PT.some(([c])=>p.pt[c].n>0));
       if(tagged.length){
-        txt+=`\nPitch mix (type usage% / strike% [avg mph]):\n`+
+        txt+=`\nPitch mix (usage% / strike% / whiff% [avg mph]):\n`+
           tagged.map(p=>{
             const tot=PT.reduce((a,[c])=>a+p.pt[c].n,0);
             const parts=PT.filter(([c])=>p.pt[c].n>0).map(([c])=>{
               const t=p.pt[c];
               const mix=(100*t.n/tot).toFixed(0), kp=(100*t.s/t.n).toFixed(0);
+              const wh=t.sw? "/"+(100*t.miss/t.sw).toFixed(0)+"%wh":"";
               const avg=t.mph.length? ` ${(t.mph.reduce((x,y)=>x+y,0)/t.mph.length).toFixed(0)}mph`:"";
-              return `${c} ${mix}%/${kp}%K${avg}`;
+              return `${c} ${mix}%/${kp}%K${wh}${avg}`;
             });
             return `  ${p.name.split(',')[0]}: ${parts.join(", ")}`;
           }).join("\n")+"\n";
@@ -781,18 +809,20 @@ function render(){
   const tagged = cp? PT.reduce((a,[c])=>a+cp.pt[c].n,0) : 0;
   const ptb=$("ptBody");
   if(!cp || !tagged){
-    ptb.innerHTML=`<tr><td colspan="5" class="faint" style="padding:14px;text-align:center">${cp? "Pitch tagging off — tap a pitch type above, then log pitches to build the mix." : "No pitcher selected."}</td></tr>`;
+    ptb.innerHTML=`<tr><td colspan="6" class="faint" style="padding:14px;text-align:center">${cp? "Pitch tagging off — tap a pitch type above, then log pitches to build the mix." : "No pitcher selected."}</td></tr>`;
   } else {
     ptb.innerHTML = PT.filter(([c])=>cp.pt[c].n>0).map(([c,name])=>{
       const t=cp.pt[c];
       const mix=(100*t.n/tagged).toFixed(0);
       const kp=t.n? (100*t.s/t.n).toFixed(0):"–";
+      const wh=t.sw? (100*t.miss/t.sw).toFixed(0):"–";
       const avg=t.mph.length? (t.mph.reduce((x,y)=>x+y,0)/t.mph.length).toFixed(0):null;
       const top=t.mph.length? Math.max(...t.mph).toFixed(0):null;
       const vel=avg? `${avg}/${top}` : "–";
       const kcol = kp>=60? "var(--strike)" : kp>=45? "var(--ball)":"var(--hit)";
+      const wcol = wh!=="–" && wh>=25? "var(--strike)" : "var(--ink)";
       return `<tr><td class="l">${name}</td><td>${t.n}</td><td>${mix}%</td>`+
-        `<td style="color:${kcol}">${kp}%</td><td class="faint">${vel}</td></tr>`;
+        `<td style="color:${kcol}">${kp}%</td><td style="color:${wcol}">${wh}${wh!=="–"?"%":""}</td><td class="faint">${vel}</td></tr>`;
     }).join("");
   }
 
@@ -830,9 +860,9 @@ function render(){
   // inning table
   const tb=$("innBody");
   tb.innerHTML = S.innings.map(i=>
-    `<tr><td class="l">${i.no}</td><td>${i.pitches}</td><td>${i.walks}</td><td>${i.errors}</td><td style="color:var(--ball)">${i.walkPitches+i.eePitches}</td><td style="color:var(--foul)">${i.xR.toFixed(1)}</td><td style="color:var(--hit)">${i.runs}</td></tr>`
+    `<tr><td class="l">${i.no}</td><td>${i.pitches}</td><td>${i.walks}</td><td>${i.errors}</td><td style="color:var(--ball)">${i.walkPitches}</td><td style="color:var(--ball)">${i.eePitches}</td><td style="color:var(--foul)">${i.xR.toFixed(1)}</td><td style="color:var(--hit)">${i.runs}</td></tr>`
   ).join("") +
-    `<tr class="tot"><td class="l">Tot</td><td>${TP}</td><td>${TBB}</td><td>${S.innings.reduce((a,i)=>a+i.errors,0)}</td><td>${eBB+eEE}</td><td>${TxR.toFixed(1)}</td><td>${TR}</td></tr>`;
+    `<tr class="tot"><td class="l">Tot</td><td>${TP}</td><td>${TBB}</td><td>${S.innings.reduce((a,i)=>a+i.errors,0)}</td><td>${eBB}</td><td>${eEE}</td><td>${TxR.toFixed(1)}</td><td>${TR}</td></tr>`;
 
   persist(); // save the whole app to this device after every change
 }
