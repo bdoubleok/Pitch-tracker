@@ -412,6 +412,7 @@
         </tbody>
       </table>
       <button class="qb" style="width:100%;margin-top:14px;padding:13px" data-act="copySummary">📋 COPY GAME SUMMARY</button>
+      <button class="qb" style="width:100%;margin-top:8px;padding:13px;background:var(--navy-700);border-color:var(--foul);color:var(--ink)" data-act="saveAsHTML">💾 SAVE AS HTML — bakes roster into file</button>
       <button class="qb" style="width:100%;margin-top:8px;padding:13px;background:#3a1414;border-color:#6a2020;color:#ffd2d2" data-act="reset">RESET GAME</button>
     </div>
   </details>
@@ -723,6 +724,26 @@ const A = {
     txt+=`\nBy inning (Inn: P / BB / Err / +P / xR / R):\n`+
       S.innings.map(i=>`  ${i.no}: ${i.pitches} / ${i.walks} / ${i.errors} / ${i.walkPitches+i.eePitches} / ${i.xR.toFixed(1)} / ${i.runs}`).join("\n");
     navigator.clipboard?.writeText(txt).then(()=>toast("Summary copied"),()=>toast("Copy failed"));
+  },
+  saveAsHTML(){
+    fetch(location.href)
+      .then(r=>r.text())
+      .then(src=>{
+        const teamsJS = APP.teams.map(t=>{
+          const roster = t.game.pitchers.map(p=>({num:p.num,name:p.name}));
+          return `freshTeam(${JSON.stringify(t.name)},${JSON.stringify(roster)})`;
+        }).join(',\n      ');
+        const seed = `/*SEED*/if(!loadApp()){\n    APP = { active:0, teams:[\n      ${teamsJS}\n    ] };\n  }/*ENDSEED*/`;
+        const updated = src.replace(/\/\*SEED\*\/[\s\S]*?\/\*ENDSEED\*\//, seed);
+        if(updated===src){ toast("Save error — marker not found in source"); return; }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([updated],{type:'text/html'}));
+        a.download = 'pitch-tracker.html';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast("Downloaded — open pitch-tracker.html anywhere to get your roster");
+      })
+      .catch(()=>toast("Save failed — page must be served over http (not file://)"));
   }
 };
 
@@ -957,12 +978,12 @@ function showError(msg){
 window.addEventListener("error", ev=> showError(ev.message));
 try{
   // Load saved teams from this device, or seed: NOVA (from your CSV) + an empty 2nd team.
-  if(!loadApp()){
+  /*SEED*/if(!loadApp()){
     APP = { active:0, teams:[
       freshTeam("NOVA Premier 13U", ROSTER),
       freshTeam("NOVA Premier Orange 17U", ROSTER_17U)
     ] };
-  }
+  }/*ENDSEED*/
   activate(APP.active);
   startPA();          // begin first plate appearance
   readControls();     // populate team + roster dropdowns + settings
