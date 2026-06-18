@@ -112,7 +112,22 @@
   .oc.out{background:var(--navy-700)}
   .oc.err{background:#5a3a12;border-color:#8a5a1c;color:#ffe2b8}
 
-  .quickrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+  .quickrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .quickrow .qb{flex:1 1 88px}
+  .qb.wp{background:#4a2a12;border-color:#7a4a1c;color:#ffd9b0}
+
+  /* 2-strike report */
+  .twok{background:var(--navy-900);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+  .twok-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .twok-tile{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px;text-align:center}
+  .twok-tile .v{font-family:var(--mono);font-size:1.55rem;font-weight:700;line-height:1}
+  .twok-tile .k{font-size:.52rem;letter-spacing:.8px;color:var(--ink-faint);margin-top:4px;font-weight:700}
+  .twok-tile .sub{font-size:.6rem;color:var(--ink-dim);margin-top:3px}
+  .twok-lab{font-size:.54rem;letter-spacing:1.5px;color:var(--ink-faint);font-weight:700;margin:13px 0 6px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:.72rem;background:var(--navy-850);border:1px solid var(--line);border-left-width:3px;border-radius:6px;padding:4px 8px;font-family:var(--mono)}
+  .twok-out{font-size:.72rem;color:var(--ink-dim);font-family:var(--mono);line-height:1.5}
+  .twok-fail{margin-top:11px;padding-top:11px;border-top:1px solid var(--line);font-size:.78rem;color:var(--ink-dim)}
   .qb{padding:12px 4px;border-radius:var(--r-sm);font-weight:700;font-size:.85rem;background:var(--navy-850);border:1px solid var(--line);color:var(--ink-dim)}
   .qb.run{background:var(--strike-d);color:#dffbe9;border-color:#2c8f57}
   .qb.undo{background:var(--navy-800)}
@@ -272,7 +287,8 @@
 
   <div class="quickrow">
     <button class="qb run" data-act="run">+ RUN</button>
-    <button class="qb" data-act="fieldErr">+ ERROR<br><span class="faint" style="font-size:.6rem">(missed out)</span></button>
+    <button class="qb wp" data-act="pitch" data-arg="wp">WP<br><span class="faint" style="font-size:.58rem">wild pitch</span></button>
+    <button class="qb" data-act="fieldErr">+ ERROR<br><span class="faint" style="font-size:.58rem">(missed out)</span></button>
     <button class="qb" data-act="outManual">+ OUT</button>
     <button class="qb undo" data-act="undo">↶ UNDO</button>
   </div>
@@ -327,6 +343,9 @@
       <span style="color:var(--foul)">▉</span> expected &nbsp; <span style="color:var(--hit)">▉</span> actual &nbsp;·&nbsp; per inning
     </div>
   </div>
+
+  <div class="seclab">2-STRIKE REPORT — <span id="twoKPitcher" style="color:var(--ink-dim)">—</span></div>
+  <div class="twok" id="twoKBox"></div>
 
   <div class="seclab">PITCH MIX — <span id="ptPitcher" style="color:var(--ink-dim)">—</span></div>
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
@@ -437,7 +456,7 @@ const ROSTER_17U = [
 const PT = [["FB","Fastball"],["CB","Curve"],["CT","Cutter"],["SL","Slider"],["CH","Change"],["OS","Offspeed"]];
 
 function freshInning(no){
-  return {no, pitches:0, walkPitches:0, eePitches:0, walks:0, errors:0, runs:0, xR:0};
+  return {no, pitches:0, walkPitches:0, eePitches:0, walks:0, errors:0, runs:0, xR:0, twoKFail:false};
 }
 function freshPitcher(p){
   // Each pitcher carries their own full stat line — splits are just
@@ -445,8 +464,10 @@ function freshPitcher(p){
   const pt={}; PT.forEach(([c])=> pt[c]={n:0, s:0, sw:0, miss:0, mph:[]}); // thrown, strikes, swings, whiffs, velocities
   return {...p, pitches:0, strikesThrown:0, firstPitchesSeen:0, fps:0,
     pa:0, ab:0, hits:0, walks:0, rispAB:0, rispH:0,
-    swings:0, whiffs:0, strikeouts:0, kLook:0, kSwing:0,
-    xR:0, actualR:0, walkPitches:0, eePitches:0, pt};
+    swings:0, whiffs:0, strikeouts:0, kLook:0, kSwing:0, wp:0,
+    xR:0, actualR:0, walkPitches:0, eePitches:0, pt,
+    twoK:{ pa:0, pitches:0, outs:0, k:0, reached:0, hits:0, walks:0, hbp:0, roe:0, inplayOut:0,
+      putaway:{ball:0,called:0,whiff:0,foul:0,inplay:0,hbp:0,wp:0}, runsAfterFail:0 }};
 }
 function freshGame(roster){
   return {
@@ -457,6 +478,7 @@ function freshGame(roster){
     inningNo:1,
     // current plate appearance (scratch state, lives on the game)
     balls:0, strikes:0, paNormalP:0, paEEP:0, firstPitchDone:false, rispThisPA:false, lastStrikeType:null,
+    twoKReached:false, awaitingPutaway:false,
     // base-out (current situation)
     outs:0, missedOuts:0, bases:[false,false,false],
     // game totals are now COMPUTED by summing pitchers — see gt()
@@ -473,7 +495,9 @@ function normalizeGame(g){
   if(!g) return freshGame([]);
   if(g.curType===undefined) g.curType=null;
   (g.pitchers||[]).forEach(p=>{
-    ['swings','whiffs','strikeouts','kLook','kSwing'].forEach(k=>{ if(p[k]===undefined) p[k]=0; });
+    ['swings','whiffs','strikeouts','kLook','kSwing','wp'].forEach(k=>{ if(p[k]===undefined) p[k]=0; });
+    if(!p.twoK) p.twoK={ pa:0,pitches:0,outs:0,k:0,reached:0,hits:0,walks:0,hbp:0,roe:0,inplayOut:0,
+      putaway:{ball:0,called:0,whiff:0,foul:0,inplay:0,hbp:0,wp:0}, runsAfterFail:0 };
     if(!p.pt){ p.pt={}; PT.forEach(([c])=>p.pt[c]={n:0,s:0,sw:0,miss:0,mph:[]}); }
     else PT.forEach(([c])=>{ const t=p.pt[c]; if(!t) p.pt[c]={n:0,s:0,sw:0,miss:0,mph:[]};
       else { if(t.sw===undefined)t.sw=0; if(t.miss===undefined)t.miss=0; } });
@@ -511,11 +535,13 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("sho
 /* ---------- core mechanics ---------- */
 function startPA(){
   S.balls=0; S.strikes=0; S.paNormalP=0; S.paEEP=0; S.firstPitchDone=false; S.lastStrikeType=null;
+  S.twoKReached=false; S.awaitingPutaway=false;
   if(P()) P().pa++;
   S.rispThisPA = S.bases[1] || S.bases[2];
 }
-function logPitch(type){ // ball | called | whiff | foul | inplay | hbp
+function logPitch(type){ // ball | called | whiff | foul | inplay | hbp | wp
   const p=P();
+  const pre = S.strikes;               // strikes BEFORE this pitch
   p.pitches++; curInn().pitches++;
   const ee = shouldBeOver();
   if(ee){ S.paEEP++; curInn().eePitches++; p.eePitches++; } else { S.paNormalP++; }
@@ -528,6 +554,7 @@ function logPitch(type){ // ball | called | whiff | foul | inplay | hbp
   if(strikey) p.strikesThrown++;
   if(swung) p.swings++;
   if(type==='whiff') p.whiffs++;
+  if(type==='wp') p.wp++;
   if(type==='called'||type==='whiff') S.lastStrikeType=type;   // remembers how strike 3 was earned
   // optional pitch-type tagging — only when a type is selected
   if(S.curType && p.pt[S.curType]){
@@ -536,14 +563,20 @@ function logPitch(type){ // ball | called | whiff | foul | inplay | hbp
     const el=$("mph"); const v= el? parseFloat(el.value):NaN;
     if(!isNaN(v)){ t.mph.push(v); if(el) el.value=""; }   // velocity attaches to this one pitch, then clears
   }
-  if(type==='ball') S.balls++;
+  if(type==='ball'||type==='wp') S.balls++;                // a wild pitch is logged as a ball that got away
   else if(type==='called'||type==='whiff') S.strikes++;
   else if(type==='foul'){ if(S.strikes<2) S.strikes++; }
+  // 2-strike report tracking
+  if(pre>=2){
+    p.twoK.pitches++;
+    if(S.awaitingPutaway){ p.twoK.putaway[type]=(p.twoK.putaway[type]||0)+1; S.awaitingPutaway=false; }
+  }
+  if(pre<2 && S.strikes>=2){ p.twoK.pa++; S.twoKReached=true; S.awaitingPutaway=true; }
 }
 function addOut(){ S.outs++; }
 function clearBases(){ S.bases=[false,false,false]; }
 function runnersOn(){ return S.bases.filter(Boolean).length; }
-function scoreRun(n){ P().actualR+=n; curInn().runs+=n; }
+function scoreRun(n){ P().actualR+=n; curInn().runs+=n; if(curInn().twoKFail) P().twoK.runsAfterFail+=n; }
 function addRunnerXR(base){ // base 1..3, uses outs at moment of reaching
   const v = S.settings.prob[base][Math.min(S.outs,2)] || 0;
   P().xR += v; curInn().xR += v;
@@ -566,7 +599,7 @@ function rollInning(){
 const A = {
   pitch(type){ if(!P()){ toast("Add a pitcher first — Settings ▸ Teams & Roster"); return; } snap();
     logPitch(type);
-    if(type==='ball' && S.balls>=4){ this.resolve('BB',true); return; }
+    if((type==='ball'||type==='wp') && S.balls>=4){ this.resolve('BB',true); return; }
     if((type==='called'||type==='whiff') && S.strikes>=3){ this.resolve('K',true); return; }
     render();
   },
@@ -575,6 +608,9 @@ const A = {
     const contact = ['OUT','1B','2B','3B','HR','FC','ROE'].includes(o);
     if(contact && !fromCount) logPitch('inplay');
     if(o==='HBP' && !fromCount) logPitch('hbp');
+
+    const twoKReach = S.twoKReached;   // did this PA reach 2 strikes?
+    if(twoKReach && ['1B','2B','3B','HR','BB','HBP','ROE'].includes(o)) curInn().twoKFail = true;
 
     let abType=true, hit=false;
     if(o==='BB'){ p.walks++; curInn().walks++; curInn().walkPitches += S.paNormalP; p.walkPitches += S.paNormalP; forceAdvance(); abType=false; }
@@ -590,6 +626,15 @@ const A = {
 
     if(abType) p.ab++;
     if(S.rispThisPA){ if(abType) p.rispAB++; if(hit) p.rispH++; }
+    if(twoKReach){
+      if(o==='K'){ p.twoK.k++; p.twoK.outs++; }
+      else if(o==='OUT'){ p.twoK.inplayOut++; p.twoK.outs++; }
+      else if(o==='FC'){ p.twoK.outs++; }
+      else if(o==='1B'||o==='2B'||o==='3B'||o==='HR'){ p.twoK.hits++; p.twoK.reached++; }
+      else if(o==='BB'){ p.twoK.walks++; p.twoK.reached++; }
+      else if(o==='HBP'){ p.twoK.hbp++; p.twoK.reached++; }
+      else if(o==='ROE'){ p.twoK.roe++; p.twoK.reached++; }
+    }
 
     finalizePA(); render();
     if(o==='HR') toast("💥 Home run logged");
@@ -663,6 +708,15 @@ const A = {
               return `${c} ${mix}%/${kp}%K${wh}${avg}`;
             });
             return `  ${p.name.split(',')[0]}: ${parts.join(", ")}`;
+          }).join("\n")+"\n";
+      }
+      const twoKers=appeared.filter(p=>p.twoK.pa>0);
+      if(twoKers.length){
+        txt+=`\n2-strike report (put-away% · K-look/swing · runs after failed put-away):\n`+
+          twoKers.map(p=>{
+            const t=p.twoK;
+            const pa=(100*t.outs/t.pa).toFixed(0);
+            return `  ${p.name.split(',')[0]}: ${pa}% put-away (${t.outs}/${t.pa}) · K ${t.k} (${p.kLook}L/${p.kSwing}Sw) · ${t.runsAfterFail} runs after fail`;
           }).join("\n")+"\n";
       }
     }
@@ -802,6 +856,33 @@ function render(){
     b.classList.toggle("on", a===active && a!=="OFF");
     b.classList.toggle("offon", a==="OFF" && active==="OFF");
   });
+
+  // 2-strike report — current pitcher
+  const cpk=P();
+  $("twoKPitcher").textContent = cpk? cpk.name.split(",")[0] : "—";
+  const tk = cpk? cpk.twoK : null;
+  if(!tk || tk.pa===0){
+    $("twoKBox").innerHTML = `<div class="faint" style="padding:14px;text-align:center">No 2-strike counts yet for this pitcher.</div>`;
+  } else {
+    const paPct=(100*tk.outs/tk.pa).toFixed(0);
+    const kPct=(100*tk.k/tk.pa).toFixed(0);
+    const ppPA=(tk.pitches/tk.pa).toFixed(1);
+    const pcol = paPct>=70?"var(--strike)":paPct>=50?"var(--ball)":"var(--hit)";
+    const order=[['whiff','Whiff','var(--strike)'],['called','Called','var(--strike)'],['foul','Foul','var(--foul)'],['ball','Ball','var(--ball)'],['inplay','In play','var(--ink-dim)'],['hbp','HBP','var(--hit)'],['wp','Wild','var(--hit)']];
+    const chips = order.filter(([k])=>tk.putaway[k]>0).map(([k,lab,c])=>`<span class="chip" style="border-left-color:${c}"><b>${tk.putaway[k]}</b> ${lab}</span>`).join("") || '<span class="faint">— none yet —</span>';
+    const outc = `K ${tk.k} (${cpk.kLook}L / ${cpk.kSwing}Sw) · in-play out ${tk.inplayOut} · hit ${tk.hits} · BB ${tk.walks} · HBP ${tk.hbp} · ROE ${tk.roe}`;
+    $("twoKBox").innerHTML = `
+      <div class="twok-tiles">
+        <div class="twok-tile"><div class="v" style="color:${pcol}">${paPct}%</div><div class="k">PUT-AWAY RATE</div><div class="sub">${tk.outs} of ${tk.pa} retired</div></div>
+        <div class="twok-tile"><div class="v">${tk.pa}</div><div class="k">2-STRIKE PAs</div><div class="sub">${kPct}% struck out</div></div>
+        <div class="twok-tile"><div class="v">${ppPA}</div><div class="k">PITCHES / 2K PA</div><div class="sub">${tk.pitches} total after 2K</div></div>
+      </div>
+      <div class="twok-lab">PUT-AWAY PITCH · first pitch with 2 strikes</div>
+      <div class="chips">${chips}</div>
+      <div class="twok-lab">2-STRIKE OUTCOMES</div>
+      <div class="twok-out">${outc}</div>
+      <div class="twok-fail">After a failed put-away (hitter reached): <b style="color:var(--hit)">${tk.runsAfterFail}</b> run${tk.runsAfterFail===1?'':'s'} scored that inning</div>`;
+  }
 
   // pitch mix — current pitcher
   const cp=P();
