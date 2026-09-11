@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#070d1c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Inline favicon: keeps the file self-contained — zero network requests, so it
+     works from a phone's Files app with no signal at the field. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E%E2%9A%BE%3C/text%3E%3C/svg%3E">
+<title>NOVA Premier 14U — Lineup Manager</title>
+<style>
+  /* =====================================================================
+     DESIGN TOKENS
+     Same variable layer as the Pitch Tracker so the two files read as one
+     product. Think of this block as your Figma "styles" panel: every color,
+     radius and type decision below refers back to these names, never to a
+     raw hex. Change a token here and the whole app re-skins.
+     ===================================================================== */
+  :root{
+    --navy-950:#070d1c;
+    --navy-900:#0b1429;
+    --navy-850:#101c38;
+    --navy-800:#152347;
+    --navy-700:#1d3160;
+    --line:#24386b;
+    --ink:#eaf0ff;
+    --ink-dim:#8ea2cf;
+    --ink-faint:#5c719e;
+    --strike:#3ddc84;   /* green  = primary / good / go */
+    --strike-d:#1f7a4a;
+    --ball:#ffb02e;     /* amber  = caution / bench */
+    --ball-d:#a86a10;
+    --foul:#5b8def;     /* blue   = secondary / selected */
+    --foul-d:#284a91;
+    --hit:#ff5d6c;      /* red    = limit / danger */
+    --hit-d:#992633;
+    --warn:#ff4d4d;
+    --r:14px;
+    --r-sm:9px;
+    --pad:14px;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--navy-950);color:var(--ink);
+    font-family:var(--sans);font-size:16px;-webkit-text-size-adjust:100%}
+  body{max-width:560px;margin:0 auto;padding:0 0 78px;min-height:100vh;background:
+    radial-gradient(1200px 600px at 50% -10%, #11224a 0%, transparent 60%),
+    var(--navy-950)}
+  h1,h2,h3{margin:0;font-weight:700;letter-spacing:.2px}
+  button{font-family:inherit;color:inherit;border:none;cursor:pointer;font-size:1rem;background:none}
+  button:active{transform:scale(.97)}
+  input,select,textarea{font-family:inherit;font-size:1rem}
+  .tnum{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .muted{color:var(--ink-dim)}
+  .faint{color:var(--ink-faint)}
+  .hide{display:none!important}
+
+  /* ---------- Header ---------- */
+  header{position:sticky;top:0;z-index:40;background:linear-gradient(180deg,var(--navy-900),rgba(11,20,41,.94));
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:9px var(--pad)}
+  .hrow{display:flex;align-items:center;gap:9px}
+  .badge{font-family:var(--mono);font-weight:700;font-size:.68rem;letter-spacing:1.4px;color:var(--strike);
+    border:1px solid var(--strike-d);border-radius:6px;padding:3px 7px;white-space:nowrap}
+  .hrow input, .hrow select{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:7px 9px;font-size:.9rem;min-width:0}
+  #opp{flex:1}
+  .iconbtn{width:38px;height:36px;border-radius:8px;background:var(--navy-850);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex:0 0 auto}
+
+  /* inning stepper — the single most-tapped control in game */
+  .innbar{display:flex;align-items:center;gap:7px;margin-top:9px}
+  .innbar .lab{font-size:.56rem;letter-spacing:1.5px;color:var(--ink-faint);font-weight:700}
+  .innpills{display:flex;gap:5px;flex:1;overflow-x:auto;scrollbar-width:none}
+  .innpills::-webkit-scrollbar{display:none}
+  .ip{flex:0 0 auto;min-width:34px;padding:7px 0;border-radius:8px;background:var(--navy-850);
+    border:1px solid var(--line);color:var(--ink-dim);font-family:var(--mono);font-weight:700;font-size:.85rem;text-align:center}
+  .ip.on{background:var(--strike);border-color:#7cf0b0;color:#04230f}
+
+  /* ---------- Layout primitives ---------- */
+  main{padding:var(--pad)}
+  .card{background:var(--navy-900);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:12px}
+  .seclab{font-size:.6rem;letter-spacing:2px;color:var(--ink-faint);margin:0 2px 8px;font-weight:700}
+  .row{display:flex;gap:8px;align-items:center}
+  .grow{flex:1;min-width:0}
+  .btn{padding:12px 10px;border-radius:var(--r-sm);font-weight:700;font-size:.85rem;
+    background:var(--navy-850);border:1px solid var(--line);color:var(--ink-dim)}
+  .btn.go{background:var(--strike-d);border-color:#2c8f57;color:#dffbe9}
+  .btn.pri{background:var(--foul);border-color:#8fb4ff;color:#fff}
+  .btn.danger{background:var(--hit-d);border-color:#b83340;color:#ffe3e6}
+  .btn.wide{flex:1}
+
+  /* ---------- FIELD tab: the diamond ---------- */
+  .field{position:relative;width:100%;aspect-ratio:1/.92;background:var(--navy-900);
+    border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  /* Decoration only. pointer-events:none is load-bearing: without it the artwork
+     sits on top of the position chips and silently eats taps. */
+  .fieldart{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .slot{position:absolute;z-index:2;transform:translate(-50%,-50%);min-width:60px;text-align:center;
+    background:rgba(7,13,28,.82);border:1px solid var(--line);border-radius:8px;padding:4px 5px;backdrop-filter:blur(2px)}
+  /* The global button:active scale() would REPLACE the centering translate above,
+     making the chip jump out from under the finger between press and release — the
+     tap then lands on the field and is lost. Restate both transforms together. */
+  .slot:active{transform:translate(-50%,-50%) scale(.96)}
+  .slot .p{font-size:.5rem;letter-spacing:1px;color:var(--strike);font-weight:800;font-family:var(--mono)}
+  .slot .n{font-size:.68rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78px}
+  .slot .num{font-family:var(--mono);color:var(--ink-dim);font-size:.6rem}
+  .slot.empty{border-style:dashed;border-color:var(--ink-faint)}
+  .slot.empty .n{color:var(--ink-faint)}
+  .slot.pitcher{border-color:var(--strike-d);box-shadow:0 0 0 1px rgba(61,220,132,.3)}
+
+  .benchstrip{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .bchip{font-size:.7rem;font-family:var(--mono);background:var(--navy-850);border:1px solid var(--ball-d);
+    color:var(--ball);border-radius:20px;padding:4px 10px;font-weight:700}
+
+  /* at-bat panel */
+  .batter{display:flex;align-items:center;gap:11px;background:var(--navy-850);border:1px solid var(--line);
+    border-radius:var(--r);padding:11px;margin-bottom:9px}
+  .jersey{flex:0 0 46px;height:46px;border-radius:10px;background:var(--navy-700);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:800;font-size:1.15rem}
+  .batter .nm{font-weight:800;font-size:1.02rem;line-height:1.2}
+  .batter .sub{font-size:.66rem;color:var(--ink-faint);letter-spacing:.6px;margin-top:2px}
+  .outcomes{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+  .oc{padding:13px 3px;border-radius:var(--r-sm);font-weight:800;font-size:.85rem;
+    background:var(--navy-800);border:1px solid var(--line)}
+  .oc.hit{background:var(--hit-d);border-color:#b83340;color:#ffe3e6}
+  .oc.walk{background:#4a3a12;border-color:#7a5a1c;color:#ffe6b8}
+  .oc.out{background:var(--navy-700);color:var(--ink-dim)}
+
+  /* pitch counter */
+  .pcount{display:flex;align-items:center;gap:10px;background:var(--navy-850);border:1px solid var(--line);
+    border-radius:var(--r);padding:11px}
+  .pcount .big{font-family:var(--mono);font-size:2.1rem;font-weight:800;line-height:1}
+  .pcount.warn .big{color:var(--ball)}
+  .pcount.over .big{color:var(--warn)}
+  .plus{flex:0 0 74px;height:58px;border-radius:var(--r);background:linear-gradient(180deg,var(--strike),var(--strike-d));
+    color:#04230f;font-weight:900;font-size:1.4rem}
+  .meter{height:6px;border-radius:4px;background:var(--navy-800);overflow:hidden;margin-top:7px}
+  .meter i{display:block;height:100%;background:var(--strike);border-radius:4px}
+  .meter.warn i{background:var(--ball)} .meter.over i{background:var(--warn)}
+
+  /* ---------- LINEUP tab: the grid ---------- */
+  .gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px}
+  table.lg{border-collapse:separate;border-spacing:4px;width:100%}
+  table.lg th{font-size:.56rem;letter-spacing:1px;color:var(--ink-faint);font-weight:700;padding:0 0 2px}
+  table.lg td.poslab{font-family:var(--mono);font-size:.68rem;font-weight:800;color:var(--ink-dim);
+    text-align:right;padding-right:3px;white-space:nowrap;width:30px}
+  .cell{width:100%;min-width:32px;height:34px;border-radius:7px;background:var(--navy-850);
+    border:1px solid var(--line);font-family:var(--mono);font-weight:700;font-size:.82rem;
+    display:flex;align-items:center;justify-content:center;position:relative;color:var(--ink)}
+  .cell.r1{border-color:var(--strike-d);background:#0e2a1d}
+  .cell.r2{border-color:var(--foul-d)}
+  .cell.off{border-color:var(--hit-d);background:#2a1116;color:#ffb9c0}
+  .cell.blank{color:var(--ink-faint);border-style:dashed}
+  .cell.locked::after{content:"";position:absolute;top:2px;right:3px;width:4px;height:4px;border-radius:50%;background:var(--ball)}
+  .cell.cur{box-shadow:0 0 0 2px var(--foul)}
+  td.benchcell{font-family:var(--mono);font-size:.58rem;color:var(--ball);text-align:center;line-height:1.25;
+    padding-top:3px;vertical-align:top}
+
+  /* batting order list */
+  .ord{display:flex;align-items:center;gap:8px;background:var(--navy-850);border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:7px 9px;margin-bottom:6px}
+  .ord .slotno{font-family:var(--mono);font-weight:800;color:var(--ink-faint);width:18px;text-align:center;font-size:.85rem}
+  .ord .nm{flex:1;font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ord .mini{width:30px;height:30px;border-radius:7px;background:var(--navy-800);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:.8rem;color:var(--ink-dim)}
+  .ord.atbat{border-color:var(--strike);background:#0e2a1d}
+
+  /* ---------- DEPTH tab ---------- */
+  .prow{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:10px;margin-bottom:9px}
+  .prow .top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .prow .nm{flex:1;font-weight:700;font-size:.94rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .poschips{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+  .pc{padding:8px 2px;border-radius:7px;font-family:var(--mono);font-weight:700;font-size:.72rem;
+    background:var(--navy-800);border:1px solid var(--line);color:var(--ink-faint)}
+  .pc.r1{background:var(--strike-d);border-color:#2c8f57;color:#dffbe9}
+  .pc.r2{background:var(--foul-d);border-color:#4a72c9;color:#d8e5ff}
+  .toggle{padding:6px 11px;border-radius:20px;font-size:.62rem;font-weight:800;letter-spacing:.8px;
+    background:var(--navy-800);border:1px solid var(--line);color:var(--ink-faint)}
+  .toggle.on{background:var(--strike-d);border-color:#2c8f57;color:#dffbe9}
+  .toggle.out{background:var(--hit-d);border-color:#b83340;color:#ffd2d6}
+
+  /* by-position depth view */
+  .dpos{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px;margin-bottom:7px}
+  .dpos .h{font-family:var(--mono);font-size:.7rem;font-weight:800;color:var(--strike);letter-spacing:1px;margin-bottom:6px}
+  .dlist{display:flex;flex-wrap:wrap;gap:5px}
+  .dl{font-size:.72rem;padding:4px 9px;border-radius:6px;background:var(--navy-800);border:1px solid var(--line)}
+  .dl.r1{border-left:3px solid var(--strike)}
+  .dl.r2{border-left:3px solid var(--foul)}
+
+  /* ---------- TIME tab ---------- */
+  .trow{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:10px;margin-bottom:8px}
+  .trow .top{display:flex;align-items:center;gap:9px}
+  .trow .nm{flex:1;font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trow .tot{font-family:var(--mono);font-weight:800;font-size:1.05rem}
+  .bar{height:7px;border-radius:4px;background:var(--navy-800);overflow:hidden;margin:7px 0}
+  .bar i{display:block;height:100%;background:var(--foul);border-radius:4px}
+  .bar.low i{background:var(--ball)}
+  .pchips{display:flex;flex-wrap:wrap;gap:4px}
+  .pchip{font-family:var(--mono);font-size:.62rem;padding:3px 7px;border-radius:5px;
+    background:var(--navy-800);border:1px solid var(--line);color:var(--ink-dim)}
+  .statline{display:flex;gap:12px;margin-top:7px;font-size:.68rem;color:var(--ink-dim);font-family:var(--mono)}
+  .statline b{color:var(--ink);font-weight:700}
+  .tabs2{display:flex;gap:6px;margin-bottom:11px}
+  .tabs2 .t{flex:1;padding:9px;border-radius:var(--r-sm);font-size:.72rem;font-weight:800;letter-spacing:.8px;
+    background:var(--navy-850);border:1px solid var(--line);color:var(--ink-faint)}
+  .tabs2 .t.on{background:var(--navy-700);color:var(--ink);border-color:var(--ink-faint)}
+
+  /* ---------- NOTES tab ---------- */
+  .stars{display:flex;gap:3px}
+  .star{font-size:1.35rem;line-height:1;color:var(--navy-700)}
+  .star.on{color:var(--ball)}
+  textarea.note{width:100%;background:var(--navy-800);border:1px solid var(--line);color:var(--ink);
+    border-radius:var(--r-sm);padding:9px;font-size:.85rem;resize:vertical;min-height:58px;margin-top:8px}
+
+  /* ---------- Settings ---------- */
+  details.set{background:var(--navy-900);border:1px solid var(--line);border-radius:var(--r);margin-bottom:11px}
+  details.set summary{padding:13px;font-size:.66rem;letter-spacing:1.6px;font-weight:800;color:var(--ink-dim);cursor:pointer}
+  details.set .body{padding:0 13px 13px}
+  .field-in{width:100%;background:var(--navy-850);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:10px;font-size:.9rem;margin-bottom:8px}
+  .rrow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .rrow input.num{flex:0 0 52px;text-align:center;background:var(--navy-850);border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;padding:9px 4px;font-family:var(--mono)}
+  .rrow input.nam{flex:1;min-width:0;background:var(--navy-850);border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;padding:9px}
+  .rrow .del{flex:0 0 36px;height:36px;border-radius:8px;background:var(--navy-850);border:1px solid var(--hit-d);color:var(--hit)}
+
+  /* ---------- Bottom nav ---------- */
+  nav{position:fixed;bottom:0;left:0;right:0;z-index:40;max-width:560px;margin:0 auto;
+    background:linear-gradient(0deg,var(--navy-900),rgba(11,20,41,.95));backdrop-filter:blur(10px);
+    border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  nav button{flex:1;padding:7px 2px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:3px}
+  nav .ic{font-size:1.05rem;line-height:1}
+  nav .tl{font-size:.52rem;letter-spacing:1px;font-weight:800;color:var(--ink-faint)}
+  nav button.on .tl{color:var(--strike)}
+  nav button.on{background:var(--navy-800)}
+
+  /* ---------- Bottom sheet (player picker) ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(3,7,18,.72);z-index:50;display:none}
+  .scrim.on{display:block}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;max-width:560px;margin:0 auto;
+    background:var(--navy-900);border-top:1px solid var(--line);border-radius:18px 18px 0 0;
+    padding:14px 14px calc(18px + env(safe-area-inset-bottom));max-height:78vh;overflow-y:auto;
+    transform:translateY(101%);transition:transform .18s ease}
+  .sheet.on{transform:translateY(0)}
+  .sheet h3{font-size:.68rem;letter-spacing:1.6px;color:var(--ink-faint);margin-bottom:11px}
+  .pick{display:flex;align-items:center;gap:10px;background:var(--navy-850);border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:10px;margin-bottom:6px;width:100%;text-align:left}
+  .pick.r1{border-left:3px solid var(--strike)}
+  .pick.r2{border-left:3px solid var(--foul)}
+  .pick.r0{border-left:3px solid var(--hit);opacity:.72}
+  .pick .nm{flex:1;font-weight:600;font-size:.88rem}
+  .pick .meta{font-family:var(--mono);font-size:.62rem;color:var(--ink-faint);text-align:right;line-height:1.35}
+
+  /* ---------- Toast ---------- */
+  #toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%) translateY(16px);z-index:60;
+    background:var(--navy-700);border:1px solid var(--line);color:var(--ink);padding:10px 16px;
+    border-radius:22px;font-size:.82rem;opacity:0;transition:.2s;pointer-events:none;white-space:nowrap}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <span class="badge">NOVA 14U</span>
+    <input id="opp" placeholder="Opponent">
+    <button class="iconbtn" data-act="tab" data-tab="set">⚙</button>
+  </div>
+  <div class="innbar">
+    <span class="lab">INN</span>
+    <div class="innpills" id="innPills"></div>
+    <button class="iconbtn" data-act="undo" title="Undo">↶</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ FIELD ============ -->
+  <section id="tab-field">
+    <div class="card" style="padding:10px">
+      <div class="seclab" id="fieldLab">DEFENSE · INNING 1</div>
+      <div class="field" id="field"><div class="infieldline"></div></div>
+      <div class="benchstrip" id="bench"></div>
+    </div>
+
+    <div class="card">
+      <div class="seclab">AT BAT · CONTINUOUS ORDER</div>
+      <div class="batter" id="batter"></div>
+      <div class="outcomes">
+        <button class="oc hit" data-act="ab" data-o="1B">1B</button>
+        <button class="oc hit" data-act="ab" data-o="2B">2B</button>
+        <button class="oc hit" data-act="ab" data-o="3B">3B</button>
+        <button class="oc hit" data-act="ab" data-o="HR">HR</button>
+        <button class="oc walk" data-act="ab" data-o="BB">BB</button>
+        <button class="oc walk" data-act="ab" data-o="HBP">HBP</button>
+        <button class="oc out" data-act="ab" data-o="K">K</button>
+        <button class="oc out" data-act="ab" data-o="OUT">OUT</button>
+        <button class="oc out" data-act="ab" data-o="ROE">ROE</button>
+        <button class="oc out" data-act="ab" data-o="FC">FC</button>
+        <button class="oc out" data-act="ab" data-o="SAC">SAC</button>
+        <button class="oc" data-act="skip" style="background:var(--navy-850);color:var(--ink-faint)">SKIP ▸</button>
+      </div>
+      <div class="faint" style="font-size:.64rem;margin-top:8px;line-height:1.45" id="abLog"></div>
+    </div>
+
+    <div class="card">
+      <div class="seclab">PITCH COUNT · THIS OUTING</div>
+      <div class="pcount" id="pcount">
+        <button class="plus" data-act="pitch">+1</button>
+        <div class="grow" id="pcInfo"></div>
+      </div>
+      <div class="row" style="margin-top:9px">
+        <button class="btn wide" data-act="pitchminus">− 1 pitch</button>
+        <button class="btn wide" data-act="setpitches">Set total…</button>
+      </div>
+      <div id="armList" style="margin-top:11px"></div>
+    </div>
+  </section>
+
+  <!-- ============ LINEUP ============ -->
+  <section id="tab-lineup" class="hide">
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn pri wide" data-act="autofill">⚡ Auto-fill lineup</button>
+        <button class="btn wide" data-act="clearfill">Clear</button>
+      </div>
+      <div class="gridwrap"><table class="lg" id="grid"></table></div>
+      <div class="faint" style="font-size:.6rem;margin-top:9px;line-height:1.5">
+        Tap any cell to assign. <span style="color:var(--strike)">Green</span> = primary spot ·
+        <span style="color:var(--foul)">Blue</span> = secondary · <span style="color:var(--hit)">Red</span> = off the depth chart.
+        Amber dot = locked (auto-fill won't touch it).
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:9px">
+        <div class="seclab grow" style="margin:0">BATTING ORDER</div>
+        <button class="btn" data-act="autoorder">Reset order</button>
+      </div>
+      <div id="orderList"></div>
+    </div>
+  </section>
+
+  <!-- ============ DEPTH ============ -->
+  <section id="tab-depth" class="hide">
+    <div class="tabs2">
+      <button class="t on" data-act="dview" data-v="player">BY PLAYER</button>
+      <button class="t" data-act="dview" data-v="pos">BY POSITION</button>
+    </div>
+    <div id="depthBody"></div>
+  </section>
+
+  <!-- ============ TIME ============ -->
+  <section id="tab-time" class="hide">
+    <div class="tabs2">
+      <button class="t on" data-act="tview" data-v="game">THIS GAME</button>
+      <button class="t" data-act="tview" data-v="season">SEASON</button>
+    </div>
+    <div id="timeBody"></div>
+    <button class="btn wide" data-act="copy" style="width:100%;margin-top:4px">📋 Copy report</button>
+  </section>
+
+  <!-- ============ NOTES ============ -->
+  <section id="tab-notes" class="hide">
+    <div id="notesBody"></div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="tab-set" class="hide">
+    <details class="set" open>
+      <summary>GAME</summary>
+      <div class="body">
+        <label class="seclab">OPPONENT</label>
+        <input class="field-in" id="setOpp" placeholder="Opponent">
+        <label class="seclab">DATE</label>
+        <input class="field-in" id="setDate" type="date">
+        <div class="row">
+          <div class="grow">
+            <label class="seclab">INNINGS</label>
+            <input class="field-in" id="setInnings" type="number" min="1" max="12">
+          </div>
+          <div class="grow">
+            <label class="seclab">PITCH LIMIT</label>
+            <input class="field-in" id="setLimit" type="number" min="1" max="150">
+          </div>
+        </div>
+        <button class="btn go" style="width:100%;margin-top:4px" data-act="finish">✅ Finish game — save to season</button>
+        <button class="btn danger" style="width:100%;margin-top:8px" data-act="reset">Reset game (keep roster)</button>
+      </div>
+    </details>
+
+    <details class="set">
+      <summary>ROSTER</summary>
+      <div class="body">
+        <div id="rosterEdit"></div>
+        <button class="btn" style="width:100%;margin-top:6px" data-act="addplayer">+ Add player</button>
+        <div class="faint" style="font-size:.64rem;margin-top:10px;line-height:1.5">
+          Numbers and names save to this device automatically. Mark who's here today
+          on the <b>Depth</b> tab — absent players drop out of the lineup and the batting order.
+        </div>
+      </div>
+    </details>
+
+    <details class="set">
+      <summary>PORTABLE FILE</summary>
+      <div class="body">
+        <button class="btn" style="width:100%" data-act="saveAsHTML">💾 Save as HTML — bakes roster + depth chart into the file</button>
+        <div class="faint" style="font-size:.64rem;margin-top:10px;line-height:1.5">
+          Downloads a copy of this page with your current roster and depth chart baked in.
+          Open that file on any phone or tablet — no internet, no account, nothing to install.
+        </div>
+      </div>
+    </details>
+
+    <details class="set">
+      <summary>SEASON HISTORY</summary>
+      <div class="body"><div id="histBody"></div></div>
+    </details>
+  </section>
+</main>
+
+<nav>
+  <button class="on" data-act="tab" data-tab="field"><span class="ic">⚾</span><span class="tl">FIELD</span></button>
+  <button data-act="tab" data-tab="lineup"><span class="ic">▦</span><span class="tl">LINEUP</span></button>
+  <button data-act="tab" data-tab="depth"><span class="ic">☰</span><span class="tl">DEPTH</span></button>
+  <button data-act="tab" data-tab="time"><span class="ic">◷</span><span class="tl">TIME</span></button>
+  <button data-act="tab" data-tab="notes"><span class="ic">✎</span><span class="tl">NOTES</span></button>
+</nav>
+
+<div class="scrim" id="scrim" data-act="closesheet"></div>
+<div class="sheet" id="sheet"><h3 id="sheetTitle"></h3><div id="sheetBody"></div></div>
+<div id="toast"></div>
+
+<script>
+/* =====================================================================
+   DATA MODEL
+   One object, `APP`, holds everything. Every tap mutates APP, then calls
+   render(). Nothing in the UI stores its own state — the DOM is always a
+   pure drawing of APP. Same unidirectional idea as React, in plain JS:
+     tap → action → mutate APP → render() → DOM
+   ===================================================================== */
+
+// The nine defensive positions, in scorebook order.
+const POS = [["P","Pitcher"],["C","Catcher"],["1B","First Base"],["2B","Second Base"],
+             ["3B","Third Base"],["SS","Shortstop"],["LF","Left Field"],
+             ["CF","Center Field"],["RF","Right Field"]];
+const POSK = POS.map(p=>p[0]);
+
+// Where each position sits on the field graphic (% of the box, x/y).
+const XY = {P:[50,57], C:[50,88], "1B":[77,53], "2B":[63,40], "3B":[23,53],
+            SS:[37,40], LF:[15,17], CF:[50,9], RF:[85,17]};
+
+// Outcomes that count as an official at-bat (walks/HBP/sacrifices don't).
+const IS_AB = {"1B":1,"2B":1,"3B":1,"HR":1,"K":1,"OUT":1,"ROE":1,"FC":1};
+const IS_HIT = {"1B":1,"2B":1,"3B":1,"HR":1};
+
+/* NOVA Premier roster — carried over from the Pitch Tracker, now 14U. */
+const SEED_ROSTER = [
+  {num:12,name:"Comottor, Jon"},   {num:5, name:"Kingsland, Gavin"},
+  {num:11,name:"Kupets, Ethan"},   {num:3, name:"Cook, Max"},
+  {num:13,name:"Edwards, Vinny"},  {num:31,name:"Hayes, Ryan"},
+  {num:9, name:"Walowac, Zach"},   {num:1, name:"Leach, Troy"},
+  {num:6, name:"Larson, Christopher"}
+];
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+/* A player carries their depth-chart ranks with them:
+   pos[code] = 1 (primary) · 2 (can play) · 0 (don't put them here). */
+function freshPlayer(p){
+  const pos={}; POSK.forEach(c=> pos[c] = 2);   // start everyone as "can play"
+  return {id:uid(), num:p.num??"", name:p.name||"", pos, present:true};
+}
+
+/* A game holds the defensive grid, the batting order, and per-player stats.
+   assign[inning][posCode] = playerId.  locks[inning][posCode] = true. */
+function freshGame(roster, prev){
+  return {
+    opp:"", date:new Date().toISOString().slice(0,10),
+    innings: prev?.innings ?? 7,
+    limit: prev?.limit ?? 85,
+    cur:1,                      // inning currently being coached
+    assign:{}, locks:{},
+    order:(roster||[]).filter(p=>p.present).map(p=>p.id),
+    atBat:0,
+    stats:{},                   // playerId → {ab,h,bb,k,rbi,pitches,byInn{},rating,note}
+    log:[]                      // running at-bat log, newest last
+  };
+}
+
+function freshStat(){ return {ab:0,h:0,bb:0,k:0,pa:0,pitches:0,byInn:{},rating:0,note:""}; }
+function ST(id){ return G.stats[id] || (G.stats[id] = freshStat()); }
+
+let APP = { roster:[], game:null, hist:[] };
+let G;                                  // shorthand for APP.game
+let UI = { tab:"field", dview:"player", tview:"game", sheet:null };
+const UNDO = [];
+
+/* ---------- persistence: one localStorage key, whole app ---------- */
+function save(){
+  try{ localStorage.setItem("nova_lineup_v1", JSON.stringify(APP)); }catch(e){}
+}
+function load(){
+  try{
+    const j = localStorage.getItem("nova_lineup_v1");
+    if(!j) return false;
+    const d = JSON.parse(j);
+    if(!d || !d.roster) return false;
+    APP = d;
+    APP.hist = APP.hist || [];
+    APP.game = normalize(APP.game);
+    return true;
+  }catch(e){ return false; }
+}
+/* Forward-compat: fill in anything an older save is missing. */
+function normalize(g){
+  if(!g) return freshGame(APP.roster);
+  g.assign = g.assign||{}; g.locks = g.locks||{}; g.stats = g.stats||{};
+  g.log = g.log||[]; g.order = g.order||[];
+  if(g.cur===undefined) g.cur=1;
+  if(g.atBat===undefined) g.atBat=0;
+  if(g.innings===undefined) g.innings=7;
+  if(g.limit===undefined) g.limit=85;
+  Object.values(g.stats).forEach(s=>{
+    ["ab","h","bb","k","pa","pitches","rating"].forEach(k=>{ if(s[k]===undefined) s[k]=0; });
+    s.byInn = s.byInn||{}; s.note = s.note||"";
+  });
+  return g;
+}
+function snap(){ UNDO.push(JSON.stringify(APP.game)); if(UNDO.length>50) UNDO.shift(); }
+function undo(){
+  if(!UNDO.length){ toast("Nothing to undo"); return; }
+  APP.game = normalize(JSON.parse(UNDO.pop())); G = APP.game; save(); render(); toast("Undone");
+}
+
+/* ---------- tiny helpers ---------- */
+const $ = id => document.getElementById(id);
+function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show");
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1500); }
+function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function P(id){ return APP.roster.find(p=>p.id===id) || null; }
+function last(n){ return String(n||"").split(",")[0].trim() || String(n||""); }
+function firstN(n){ const b=String(n||"").split(","); return (b[1]||b[0]||"").trim(); }
+function label(p){ return p ? (last(p.name) + (firstN(p.name)&&last(p.name)!==firstN(p.name) ? ", "+firstN(p.name).charAt(0) : "")) : ""; }
+function here(){ return APP.roster.filter(p=>p.present); }
+function A(inn){ return G.assign[inn] || (G.assign[inn] = {}); }
+function L(inn){ return G.locks[inn]  || (G.locks[inn]  = {}); }
+
+/* MLB Pitch Smart required rest for ages 13–14. The whole point of showing
+   this in-game: a coach should know the cost of the next 10 pitches BEFORE
+   throwing them, not the morning after. */
+function restDays(n){ return n<=20?0 : n<=35?1 : n<=50?2 : n<=65?3 : 4; }
+
+/* ---------- derived playing time ----------
+   Innings are never typed in — they're COUNTED from the grid. One source of
+   truth (the assignment grid) means the report can't drift from the lineup. */
+function timeFor(id, game){
+  const g = game||G, out = {total:0, byPos:{}};
+  for(let i=1;i<=g.innings;i++){
+    const a = g.assign[i]||{};
+    for(const c of POSK) if(a[c]===id){ out.total++; out.byPos[c]=(out.byPos[c]||0)+1; }
+  }
+  return out;
+}
+function benchFor(inn){
+  const a = A(inn), on = new Set(POSK.map(c=>a[c]).filter(Boolean));
+  return here().filter(p=>!on.has(p.id));
+}
+
+/* =====================================================================
+   AUTO-FILL — the "generator"
+   Greedy, scarcity-first: fill the hardest positions to staff before the
+   easy ones, and at every step pick the player the schedule owes the most.
+
+   Score is a cost (lower wins), built from four pressures a coach balances:
+     · depth rank    — put people where they belong
+     · fairness      — whoever has sat the most gets the next inning
+     · continuity    — don't shuffle someone every half-inning (big for P/C)
+     · variety       — spread positions around over a long game
+   Locked cells are treated as immovable and just consume the player.
+   ===================================================================== */
+function autofill(){
+  snap();
+  const avail = here();
+  if(avail.length < 9){ toast(`Only ${avail.length} players marked present`); }
+
+  const played = {};                       // id → innings played so far
+  const atPos  = {};                       // id → {pos: count}
+  avail.forEach(p=>{ played[p.id]=0; atPos[p.id]={}; });
+
+  // Carry locked assignments into the counters first so fairness sees them.
+  const credit = (id,c)=>{ if(played[id]===undefined) return;
+    played[id]++; atPos[id][c]=(atPos[id][c]||0)+1; };
+
+  for(let i=1;i<=G.innings;i++){
+    const a = A(i), lk = L(i);
+    const taken = new Set();
+
+    // 1. Honour locks. Anything not locked gets cleared and re-solved.
+    for(const c of POSK){
+      if(lk[c] && a[c] && avail.some(p=>p.id===a[c])){ taken.add(a[c]); credit(a[c],c); }
+      else delete a[c];
+    }
+
+    // 2. Scarcity order — fewest eligible bodies first.
+    const eligible = c => avail.filter(p=>p.pos[c]>0 && !taken.has(p.id));
+    // Hardest-to-staff positions go first; among equally scarce ones, order is
+    // shuffled so the position that gets stuck with "whoever's left" moves around.
+    const open = POSK.filter(c=>!a[c])
+      .map(c=>({c, n: avail.filter(p=>p.pos[c]>0).length, j: Math.random()}))
+      .sort((x,y)=> x.n - y.n || x.j - y.j)
+      .map(o=>o.c);
+
+    for(const c of open){
+      let pool = eligible(c);
+      if(!pool.length) pool = avail.filter(p=>!taken.has(p.id));   // last resort: anybody left
+      if(!pool.length) continue;
+
+      const prev = (G.assign[i-1]||{})[c];
+      const best = pool.map(p=>{
+        let s = (p.pos[c]||3) * 1000;                 // depth rank dominates everything
+        s += played[p.id] * 260;                      // fairness: fewest innings gets the nod
+        s += (atPos[p.id][c]||0) * 95;                // variety: stop parking a kid in RF
+        if(p.id===prev) s -= (c==="P"||c==="C") ? 900 : 240;   // continuity
+        s += Math.random() * 80;                      // tie-break, see note below
+        return {p, s};
+      }).sort((m,n)=> m.s - n.s)[0].p;
+      // Why these numbers: continuity (-240) beats one or two innings of variety
+      // (+95 each), so a fielder holds a spot for ~3 innings and then rotates.
+      // P and C get a much heavier continuity bonus (-900) because shuffling the
+      // battery mid-game is a real cost, not a fairness win. Fairness outranks
+      // both, so a player sitting on the bench always outbids a player already on.
+      // The random term is smaller than one step of any other pressure, so it can
+      // only separate genuine ties — which means tapping Auto-fill again offers a
+      // different, equally valid lineup instead of the same one forever.
+
+      a[c] = best.id; taken.add(best.id); credit(best.id, c);
+    }
+  }
+  save(); render();
+  toast("Lineup filled — tap any cell to adjust");
+}
+
+/* =====================================================================
+   RENDER
+   render() redraws the header plus ONLY the active tab. Two reasons:
+   it's cheap, and it avoids blowing away focus in a text field the coach
+   is typing into on some other tab.
+   ===================================================================== */
+function render(){
+  renderInnings();
+  ({field:renderField, lineup:renderLineup, depth:renderDepth,
+    time:renderTime, notes:renderNotes, set:renderSettings}[UI.tab] || (()=>{}))();
+}
+
+function renderInnings(){
+  $("innPills").innerHTML = Array.from({length:G.innings},(_,k)=>k+1)
+    .map(i=>`<button class="ip ${i===G.cur?"on":""}" data-act="inn" data-i="${i}">${i}</button>`).join("");
+  $("opp").value = G.opp;
+}
+
+/* ---------------- FIELD ---------------- */
+function renderField(){
+  const a = A(G.cur);
+  $("fieldLab").textContent = `DEFENSE · INNING ${G.cur}`;
+  const ART = `<svg class="fieldart" viewBox="0 0 100 92" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M50 84 L6 31 Q50 3 94 31 Z" fill="#0f2f1c"/>
+      <polygon points="50,86 79,59 50,32 21,59" fill="#3a2a1a"/>
+      <polygon points="50,78 70,59 50,40 30,59" fill="#0f2f1c"/>
+      <circle cx="50" cy="57" r="5.5" fill="#3a2a1a"/>
+      <path d="M50 84 L6 31 M50 84 L94 31" stroke="rgba(255,255,255,.13)" stroke-width=".7" fill="none"/>
+    </svg>`;
+  $("field").innerHTML = ART + POSK.map(c=>{
+    const [x,y] = XY[c], p = P(a[c]);
+    return `<button class="slot ${p?"":"empty"} ${c==="P"?"pitcher":""}"
+      style="left:${x}%;top:${y}%" data-act="cell" data-i="${G.cur}" data-c="${c}">
+      <div class="p">${c}</div>
+      <div class="n">${p ? esc(last(p.name)) : "—"}</div>
+      ${p&&p.num!==""?`<div class="num">#${esc(p.num)}</div>`:""}
+    </button>`;
+  }).join("");
+
+  const b = benchFor(G.cur);
+  $("bench").innerHTML = b.length
+    ? `<span class="faint" style="font-size:.6rem;letter-spacing:1.5px;align-self:center">BENCH</span>` +
+      b.map(p=>`<span class="bchip">${esc(last(p.name))}</span>`).join("")
+    : `<span class="faint" style="font-size:.64rem">Everyone's on the field this inning.</span>`;
+
+  renderBatter();
+  renderPitch();
+}
+
+function renderBatter(){
+  const n = G.order.length;
+  if(!n){ $("batter").innerHTML = `<div class="faint">No batting order — set one on the Lineup tab.</div>`;
+          $("abLog").innerHTML=""; return; }
+  const id = G.order[G.atBat % n], p = P(id), s = ST(id), t = timeFor(id);
+  const onDeck = P(G.order[(G.atBat+1) % n]);
+  $("batter").innerHTML = `
+    <div class="jersey">${p&&p.num!==""?esc(p.num):"—"}</div>
+    <div class="grow">
+      <div class="nm">${p?esc(firstN(p.name)+" "+last(p.name)):"—"}</div>
+      <div class="sub">SPOT ${(G.atBat%n)+1}/${n} · ${s.h}-${s.ab} · ${s.bb} BB · ${t.total} INN</div>
+    </div>
+    <div style="text-align:right">
+      <div class="faint" style="font-size:.5rem;letter-spacing:1.2px">ON DECK</div>
+      <div class="muted" style="font-size:.76rem;font-weight:700">${onDeck?esc(last(onDeck.name)):"—"}</div>
+    </div>`;
+  $("abLog").innerHTML = G.log.length
+    ? "LAST: " + G.log.slice(-6).reverse()
+        .map(e=>`${esc(last(P(e.id)?.name||"?"))} ${e.o}<span class="faint">(i${e.inn})</span>`).join(" · ")
+    : "";
+}
+
+function renderPitch(){
+  const id = A(G.cur).P, p = P(id);
+  const box = $("pcount");
+  if(!p){
+    box.className = "pcount";
+    $("pcInfo").innerHTML = `<div class="muted" style="font-size:.82rem">No pitcher assigned for inning ${G.cur}.</div>
+      <div class="faint" style="font-size:.66rem;margin-top:3px">Tap the mound on the field above to set one.</div>`;
+  }else{
+    const s = ST(id), n = s.pitches, pct = Math.min(100, 100*n/G.limit);
+    const state = n >= G.limit ? "over" : n >= G.limit*0.8 ? "warn" : "";
+    box.className = "pcount " + state;
+    const byInn = Object.entries(s.byInn).filter(([,v])=>v>0)
+      .map(([i,v])=>`i${i}:${v}`).join(" · ");
+    $("pcInfo").innerHTML = `
+      <div class="row" style="align-items:baseline;gap:7px">
+        <span class="big">${n}</span>
+        <span class="faint" style="font-size:.66rem">/ ${G.limit}</span>
+        <span class="grow" style="text-align:right;font-weight:700;font-size:.82rem">${esc(last(p.name))}</span>
+      </div>
+      <div class="meter ${state}"><i style="width:${pct}%"></i></div>
+      <div class="faint tnum" style="font-size:.62rem;margin-top:5px">
+        REST ${restDays(n)} DAY${restDays(n)===1?"":"S"}${byInn?" · "+byInn:""}</div>`;
+  }
+  // every arm that has thrown today, with its rest cost
+  const arms = APP.roster.filter(x=>ST(x.id).pitches>0);
+  $("armList").innerHTML = arms.length ? `<div class="seclab">ARMS USED TODAY</div>` + arms.map(x=>{
+    const n = ST(x.id).pitches, r = restDays(n);
+    const col = n>=G.limit?"var(--warn)":n>=G.limit*.8?"var(--ball)":"var(--ink)";
+    return `<div class="row" style="padding:6px 2px;border-top:1px solid var(--line)">
+      <span class="grow" style="font-size:.82rem;font-weight:600">${esc(last(x.name))}</span>
+      <span class="tnum" style="color:${col};font-weight:700">${n}</span>
+      <span class="faint tnum" style="font-size:.66rem;width:62px;text-align:right">${r} day rest</span>
+    </div>`;
+  }).join("") : "";
+}
+
+/* ---------------- LINEUP ---------------- */
+function renderLineup(){
+  const inns = Array.from({length:G.innings},(_,k)=>k+1);
+  let h = `<thead><tr><th></th>${inns.map(i=>`<th>${i}</th>`).join("")}</tr></thead><tbody>`;
+  for(const [c,full] of POS){
+    h += `<tr><td class="poslab">${c}</td>` + inns.map(i=>{
+      const p = P((G.assign[i]||{})[c]);
+      const rank = p ? p.pos[c] : null;
+      const cls = !p ? "blank" : rank===1 ? "r1" : rank===2 ? "r2" : "off";
+      const lock = (G.locks[i]||{})[c] ? "locked" : "";
+      const cur  = i===G.cur ? "cur" : "";
+      const txt  = p ? (p.num!=="" ? p.num : last(p.name).slice(0,3)) : "·";
+      return `<td><button class="cell ${cls} ${lock} ${cur}" data-act="cell" data-i="${i}" data-c="${c}"
+        title="${esc(full)}">${esc(txt)}</button></td>`;
+    }).join("") + `</tr>`;
+  }
+  h += `<tr><td class="poslab" style="color:var(--ball)">BN</td>` + inns.map(i=>
+    `<td class="benchcell">${benchFor(i).map(p=>esc(p.num!==""?p.num:last(p.name).slice(0,2))).join("<br>")||"—"}</td>`
+  ).join("") + `</tr></tbody>`;
+  $("grid").innerHTML = h;
+
+  $("orderList").innerHTML = G.order.length ? G.order.map((id,k)=>{
+    const p = P(id); if(!p) return "";
+    const s = ST(id);
+    return `<div class="ord ${k===G.atBat%G.order.length?"atbat":""}">
+      <span class="slotno">${k+1}</span>
+      <span class="nm">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</span>
+      <span class="faint tnum" style="font-size:.64rem;margin-right:4px">${s.h}/${s.ab}</span>
+      <button class="mini" data-act="ordup" data-k="${k}">▲</button>
+      <button class="mini" data-act="orddn" data-k="${k}">▼</button>
+      <button class="mini" data-act="setab" data-k="${k}" title="Bat here next">⚾</button>
+    </div>`;
+  }).join("") : `<div class="faint" style="font-size:.8rem">No one marked present — see the Depth tab.</div>`;
+}
+
+/* ---------------- DEPTH ---------------- */
+function renderDepth(){
+  document.querySelectorAll('[data-act="dview"]').forEach(b=>
+    b.classList.toggle("on", b.dataset.v===UI.dview));
+
+  if(UI.dview==="player"){
+    $("depthBody").innerHTML = APP.roster.map(p=>`
+      <div class="prow">
+        <div class="top">
+          <div class="jersey" style="flex:0 0 38px;height:38px;font-size:.95rem">${p.num!==""?esc(p.num):"—"}</div>
+          <div class="nm">${esc(firstN(p.name)+" "+last(p.name))}</div>
+          <button class="toggle ${p.present?"on":"out"}" data-act="present" data-id="${p.id}">
+            ${p.present?"HERE":"OUT"}</button>
+        </div>
+        <div class="poschips">${POSK.map(c=>
+          `<button class="pc ${p.pos[c]===1?"r1":p.pos[c]===2?"r2":""}"
+            data-act="rank" data-id="${p.id}" data-c="${c}">${c}</button>`).join("")}</div>
+      </div>`).join("") +
+      `<div class="faint" style="font-size:.64rem;line-height:1.55;padding:2px 4px">
+        Tap a position to cycle it: <span style="color:var(--foul)">can play</span> →
+        <span style="color:var(--strike)">primary</span> → off. Auto-fill sends players to their
+        primary spots first, then fills the gaps by who's owed innings.</div>`;
+  }else{
+    $("depthBody").innerHTML = POS.map(([c,full])=>{
+      const pool = APP.roster.filter(p=>p.pos[c]>0)
+        .sort((a,b)=> a.pos[c]-b.pos[c] || last(a.name).localeCompare(last(b.name)));
+      return `<div class="dpos">
+        <div class="h">${c} · ${full.toUpperCase()}</div>
+        <div class="dlist">${pool.length ? pool.map((p,k)=>
+          `<span class="dl r${p.pos[c]}" style="${p.present?"":"opacity:.42"}">
+            <span class="faint tnum">${k+1}</span> ${esc(last(p.name))}${p.present?"":" ·out"}</span>`).join("")
+          : `<span class="faint" style="font-size:.72rem">Nobody assigned — auto-fill will grab whoever's free.</span>`}</div>
+      </div>`;
+    }).join("");
+  }
+}
+
+/* ---------------- TIME ---------------- */
+function seasonFor(id){
+  const acc = {total:0, byPos:{}, ab:0, h:0, bb:0, k:0, pitches:0, games:0, outings:[]};
+  [...APP.hist, G].forEach(g=>{
+    const t = timeFor(id, g), s = g.stats[id];
+    const appeared = t.total>0 || (s && (s.pa>0 || s.pitches>0));
+    if(!appeared) return;
+    acc.games++; acc.total += t.total;
+    for(const c in t.byPos) acc.byPos[c] = (acc.byPos[c]||0) + t.byPos[c];
+    if(s){ acc.ab+=s.ab; acc.h+=s.h; acc.bb+=s.bb; acc.k+=s.k; acc.pitches+=s.pitches;
+           if(s.pitches>0) acc.outings.push(s.pitches); }
+  });
+  return acc;
+}
+function renderTime(){
+  document.querySelectorAll('[data-act="tview"]').forEach(b=>
+    b.classList.toggle("on", b.dataset.v===UI.tview));
+  const season = UI.tview==="season";
+
+  const rows = APP.roster.map(p=>{
+    const t = season ? seasonFor(p.id) : Object.assign(timeFor(p.id), ST(p.id));
+    const max = season ? Math.max(1, ...APP.roster.map(x=>seasonFor(x.id).total))
+                       : G.innings;
+    return {p, t, max};
+  }).sort((a,b)=> b.t.total - a.t.total);
+
+  $("timeBody").innerHTML = rows.map(({p,t,max})=>{
+    const pct = Math.round(100*t.total/Math.max(1,max));
+    const chips = POSK.filter(c=>t.byPos[c])
+      .map(c=>`<span class="pchip">${c} ${t.byPos[c]}</span>`).join("");
+    const avg = t.ab ? (t.h/t.ab).toFixed(3).replace(/^0/,"") : "—";
+    const outings = season && t.outings?.length
+      ? ` · <b>${t.outings.length}</b> outing${t.outings.length===1?"":"s"} (${t.outings.join("/")})` : "";
+    return `<div class="trow" style="${p.present?"":"opacity:.5"}">
+      <div class="top">
+        <span class="faint tnum" style="width:24px">${p.num!==""?"#"+esc(p.num):""}</span>
+        <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}</span>
+        <span class="tot">${t.total}<span class="faint" style="font-size:.6rem"> INN</span></span>
+      </div>
+      <div class="bar ${pct<60?"low":""}"><i style="width:${pct}%"></i></div>
+      <div class="pchips">${chips || `<span class="faint" style="font-size:.66rem">No defensive innings yet</span>`}</div>
+      <div class="statline">
+        <span><b>${t.ab||0}</b> AB</span><span><b>${t.h||0}</b> H</span>
+        <span><b>${avg}</b> AVG</span><span><b>${t.bb||0}</b> BB</span>
+        <span><b>${t.k||0}</b> K</span>
+        <span><b>${t.pitches||0}</b> P${outings}</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------------- NOTES ---------------- */
+function renderNotes(){
+  $("notesBody").innerHTML = APP.roster.map(p=>{
+    const s = ST(p.id), t = timeFor(p.id);
+    return `<div class="prow">
+      <div class="top">
+        <div class="nm">${esc(firstN(p.name)+" "+last(p.name))}
+          <span class="faint tnum" style="font-size:.62rem">· ${t.total} inn · ${s.h}/${s.ab}${s.pitches?` · ${s.pitches}p`:""}</span>
+        </div>
+        <div class="stars">${[1,2,3,4,5].map(n=>
+          `<button class="star ${n<=s.rating?"on":""}" data-act="rate" data-id="${p.id}" data-n="${n}">★</button>`).join("")}</div>
+      </div>
+      <textarea class="note" data-field="note" data-id="${p.id}"
+        placeholder="What you saw — swing, reads, effort, what to work on…">${esc(s.note)}</textarea>
+    </div>`;
+  }).join("");
+}
+
+/* ---------------- SETTINGS ---------------- */
+function renderSettings(){
+  $("setOpp").value = G.opp; $("setDate").value = G.date;
+  $("setInnings").value = G.innings; $("setLimit").value = G.limit;
+  $("rosterEdit").innerHTML = APP.roster.map(p=>`
+    <div class="rrow">
+      <input class="num" data-field="num" data-id="${p.id}" value="${esc(p.num)}" placeholder="#">
+      <input class="nam" data-field="name" data-id="${p.id}" value="${esc(p.name)}" placeholder="Last, First">
+      <button class="del" data-act="delplayer" data-id="${p.id}">✕</button>
+    </div>`).join("");
+  $("histBody").innerHTML = APP.hist.length
+    ? APP.hist.slice().reverse().map((g,k)=>`
+        <div class="row" style="padding:9px 2px;border-bottom:1px solid var(--line)">
+          <span class="grow" style="font-size:.84rem">${esc(g.opp||"Untitled")} <span class="faint tnum" style="font-size:.66rem">${esc(g.date||"")}</span></span>
+          <button class="btn" data-act="delgame" data-k="${APP.hist.length-1-k}">Delete</button>
+        </div>`).join("")
+    : `<div class="faint" style="font-size:.76rem">No finished games yet. Tap “Finish game” above to bank one into your season totals.</div>`;
+}
+
+/* =====================================================================
+   BOTTOM SHEET — the position picker
+   One sheet component reused everywhere a player has to be chosen. It
+   shows the two numbers that actually drive the decision: total innings
+   so far, and innings already spent at THIS position.
+   ===================================================================== */
+function openCell(inn, c){
+  UI.sheet = {inn, c};
+  const a = A(inn), full = POS.find(x=>x[0]===c)[1], locked = !!L(inn)[c];
+  $("sheetTitle").textContent = `INNING ${inn} · ${full.toUpperCase()}`;
+
+  const list = here().slice().sort((x,y)=>
+    (x.pos[c]||9)-(y.pos[c]||9) || timeFor(x.id).total - timeFor(y.id).total);
+
+  $("sheetBody").innerHTML = list.map(p=>{
+    const t = timeFor(p.id), at = t.byPos[c]||0;
+    const where = POSK.find(k=>a[k]===p.id);
+    const isHere = a[c]===p.id;
+    return `<button class="pick r${p.pos[c]}" data-act="assign" data-id="${p.id}"
+        style="${isHere?"box-shadow:0 0 0 2px var(--strike)":""}">
+      <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${p.num!==""?esc(p.num):"—"}</span>
+      <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}
+        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">
+          ${p.pos[c]===1?"Primary here":p.pos[c]===2?"Can play here":"Not on depth chart"}</span></span>
+      <span class="meta">${t.total} inn<br>${at} at ${c}${where?`<br><span style="color:var(--ball)">now ${where}</span>`:""}</span>
+    </button>`;
+  }).join("") + `
+    <div class="row" style="margin-top:10px">
+      <button class="btn wide" data-act="clearcell">Leave empty</button>
+      <button class="btn wide ${locked?"pri":""}" data-act="locktoggle">${locked?"🔒 Locked":"Lock cell"}</button>
+    </div>
+    <div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.5">
+      Locked cells survive Auto-fill — use it to pin your pitching plan, then let the
+      generator solve the other eight spots around it.</div>`;
+
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
+function closeSheet(){ UI.sheet=null; $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
+
+/* =====================================================================
+   ACTIONS — every tap in the app lands in exactly one of these.
+   ===================================================================== */
+const ACT = {
+  tab(el){ UI.tab = el.dataset.tab;
+    ["field","lineup","depth","time","notes","set"].forEach(t=>
+      $("tab-"+t).classList.toggle("hide", t!==UI.tab));
+    document.querySelectorAll("nav button").forEach(b=>
+      b.classList.toggle("on", b.dataset.tab===UI.tab));
+    window.scrollTo(0,0); render();
+  },
+  inn(el){ G.cur = +el.dataset.i; save(); render(); },
+  undo(){ undo(); },
+  cell(el){ openCell(+el.dataset.i, el.dataset.c); },
+
+  // Assign with a swap: if the player is already on the field this inning,
+  // the two of them trade spots rather than the app silently duplicating.
+  assign(el){
+    const {inn,c} = UI.sheet, id = el.dataset.id;
+    snap();
+    const a = A(inn), from = POSK.find(k=>a[k]===id), displaced = a[c];
+    if(from){ if(displaced && displaced!==id) a[from]=displaced; else delete a[from]; }
+    a[c] = id;
+    L(inn)[c] = true;
+    if(from && a[from]) L(inn)[from] = true;
+    save(); closeSheet(); render();
+  },
+  clearcell(){ const {inn,c}=UI.sheet; snap(); delete A(inn)[c]; delete L(inn)[c];
+    save(); closeSheet(); render(); },
+  locktoggle(){ const {inn,c}=UI.sheet; const lk=L(inn);
+    if(lk[c]) delete lk[c]; else lk[c]=true; save(); openCell(inn,c); renderLineup(); },
+  closesheet(){ closeSheet(); },
+
+  autofill(){ autofill(); },
+  clearfill(){
+    if(!confirm("Clear the whole defensive grid, locks included?")) return;
+    snap(); G.assign={}; G.locks={}; save(); render(); toast("Grid cleared");
+  },
+
+  /* ---- batting ---- */
+  ab(el){
+    const n = G.order.length; if(!n){ toast("Set a batting order first"); return; }
+    const o = el.dataset.o, id = G.order[G.atBat % n];
+    snap();
+    const s = ST(id);
+    s.pa++;
+    if(IS_AB[o])  s.ab++;
+    if(IS_HIT[o]) s.h++;
+    if(o==="BB"||o==="HBP") s.bb++;
+    if(o==="K")   s.k++;
+    G.log.push({id, o, inn:G.cur});
+    G.atBat = (G.atBat + 1) % n;
+    save(); render();
+  },
+  skip(){ const n=G.order.length; if(!n) return; snap();
+    G.atBat=(G.atBat+1)%n; save(); render(); },
+  setab(el){ snap(); G.atBat = +el.dataset.k % Math.max(1,G.order.length); save(); render(); },
+  ordup(el){ const k=+el.dataset.k; if(k<1) return; snap();
+    [G.order[k-1],G.order[k]]=[G.order[k],G.order[k-1]]; save(); renderLineup(); },
+  orddn(el){ const k=+el.dataset.k; if(k>=G.order.length-1) return; snap();
+    [G.order[k+1],G.order[k]]=[G.order[k],G.order[k+1]]; save(); renderLineup(); },
+  autoorder(){ snap(); G.order = here().map(p=>p.id); G.atBat=0; save(); render();
+    toast("Order reset to roster sequence"); },
+
+  /* ---- pitch count ---- */
+  pitch(){
+    const id = A(G.cur).P; if(!id){ toast("No pitcher assigned this inning"); return; }
+    snap(); const s = ST(id);
+    s.pitches++; s.byInn[G.cur] = (s.byInn[G.cur]||0) + 1;
+    save(); renderPitch();
+    if(s.pitches===G.limit) toast("⚠ Pitch limit reached");
+  },
+  pitchminus(){
+    const id = A(G.cur).P; if(!id) return;
+    snap(); const s = ST(id);
+    if(s.pitches>0) s.pitches--;
+    if(s.byInn[G.cur]>0) s.byInn[G.cur]--;
+    save(); renderPitch();
+  },
+  setpitches(){
+    const id = A(G.cur).P; if(!id){ toast("No pitcher assigned this inning"); return; }
+    const s = ST(id);
+    const v = prompt(`Total pitches for ${last(P(id).name)} today:`, s.pitches);
+    if(v===null) return;
+    const n = Math.max(0, parseInt(v,10)||0);
+    snap(); s.pitches = n; save(); renderPitch();
+  },
+
+  /* ---- view switchers: pure UI state, no game data touched ---- */
+  dview(el){ UI.dview = el.dataset.v; renderDepth(); },
+  tview(el){ UI.tview = el.dataset.v; renderTime(); },
+
+  /* ---- depth chart ---- */
+  rank(el){
+    const p = P(el.dataset.id), c = el.dataset.c;
+    snap();
+    p.pos[c] = p.pos[c]===2 ? 1 : p.pos[c]===1 ? 0 : 2;   // can play → primary → off
+    save(); renderDepth();
+  },
+  present(el){
+    const p = P(el.dataset.id);
+    snap();
+    p.present = !p.present;
+    if(p.present){ if(!G.order.includes(p.id)) G.order.push(p.id); }
+    else {
+      G.order = G.order.filter(id=>id!==p.id);
+      for(let i=1;i<=G.innings;i++){
+        const a=G.assign[i]||{};
+        POSK.forEach(c=>{ if(a[c]===p.id){ delete a[c]; delete (G.locks[i]||{})[c]; } });
+      }
+    }
+    if(G.order.length) G.atBat = G.atBat % G.order.length; else G.atBat = 0;
+    save(); renderDepth(); toast(p.present? last(p.name)+" is in" : last(p.name)+" pulled from lineup");
+  },
+
+  /* ---- notes ---- */
+  rate(el){
+    const s = ST(el.dataset.id), n = +el.dataset.n;
+    snap(); s.rating = s.rating===n ? 0 : n;      // tap the same star to clear
+    save(); renderNotes();
+  },
+
+  /* ---- roster ---- */
+  addplayer(){ snap(); APP.roster.push(freshPlayer({num:"",name:""}));
+    save(); renderSettings(); },
+  delplayer(el){
+    const p = P(el.dataset.id);
+    if(!confirm(`Remove ${p.name||"this player"} from the roster?`)) return;
+    snap();
+    APP.roster = APP.roster.filter(x=>x.id!==p.id);
+    G.order = G.order.filter(id=>id!==p.id);
+    for(let i=1;i<=G.innings;i++){ const a=G.assign[i]||{};
+      POSK.forEach(c=>{ if(a[c]===p.id) delete a[c]; }); }
+    save(); renderSettings();
+  },
+
+  /* ---- game lifecycle ---- */
+  finish(){
+    if(!confirm("Bank this game into your season totals and start a fresh one?\n\nRoster, depth chart and settings stay.")) return;
+    snap();
+    APP.hist.push(JSON.parse(JSON.stringify(G)));
+    APP.game = G = freshGame(APP.roster, G);
+    save(); render(); toast("Game saved to season history");
+  },
+  reset(){
+    if(!confirm("Reset this game? Clears the grid, at-bats, pitch counts and notes.")) return;
+    snap();
+    APP.game = G = freshGame(APP.roster, G);
+    save(); render(); toast("Game reset");
+  },
+  delgame(el){
+    if(!confirm("Delete this game from season history?")) return;
+    snap(); APP.hist.splice(+el.dataset.k,1); save(); renderSettings();
+  },
+
+  /* ---- export ---- */
+  copy(){
+    const season = UI.tview==="season";
+    let txt = season ? `NOVA Premier 14U — SEASON TO DATE (${APP.hist.length+1} games)\n`
+                     : `NOVA Premier 14U vs ${G.opp||"TBD"} — ${G.date}\n`;
+    txt += "=".repeat(46) + "\n";
+    APP.roster.forEach(p=>{
+      const t = season ? seasonFor(p.id) : Object.assign(timeFor(p.id), ST(p.id));
+      if(!t.total && !t.pa && !t.pitches) return;
+      const posStr = POSK.filter(c=>t.byPos[c]).map(c=>`${c}:${t.byPos[c]}`).join(" ");
+      const avg = t.ab ? (t.h/t.ab).toFixed(3).replace(/^0/,"") : "---";
+      txt += `${last(p.name).padEnd(13)} ${String(t.total).padStart(2)}inn  ${String(t.h)}/${String(t.ab)} ${avg}`
+           + `  ${t.bb||0}BB ${t.k||0}K` + (t.pitches?`  ${t.pitches}p`:"") + `\n`;
+      if(posStr) txt += `              ${posStr}\n`;
+    });
+    if(!season){
+      const noted = APP.roster.filter(p=>ST(p.id).note || ST(p.id).rating);
+      if(noted.length){
+        txt += `\nNOTES\n`;
+        noted.forEach(p=>{ const s=ST(p.id);
+          txt += `  ${last(p.name)}${s.rating?" "+"★".repeat(s.rating):""}${s.note?": "+s.note:""}\n`; });
+      }
+    }
+    (navigator.clipboard?.writeText(txt) || Promise.reject())
+      .then(()=>toast("Report copied"), ()=>{ prompt("Copy this:", txt); });
+  },
+
+  /* Bakes the current roster + depth chart into a downloadable copy of this
+     page. The file is the database — hand it to an assistant coach and they
+     have your whole setup, offline. */
+  saveAsHTML(){
+    fetch(location.href).then(r=>r.text()).then(src=>{
+      const seedData = { roster: APP.roster.map(p=>({id:p.id,num:p.num,name:p.name,pos:p.pos,present:true})) };
+      // The marker is assembled from pieces on purpose. If the literal appeared
+      // here in one piece, this line would be the FIRST match in the page source
+      // and the export would overwrite its own exporter instead of the boot seed.
+      const seed = "/*"+"SEED*/var SEED_SAVED = " + JSON.stringify(seedData) + ";/*END"+"SEED*/";
+      const re = /\/\*SEED\*\/[\s\S]*?\/\*ENDSEED\*\//;
+      // Test for the marker rather than comparing before/after: re-exporting an
+      // unchanged roster produces an identical file, which is success, not failure.
+      if(!re.test(src)){ toast("Save error — marker not found"); return; }
+      const out = src.replace(re, seed);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([out],{type:"text/html"}));
+      a.download = "nova-lineup.html"; a.click();
+      URL.revokeObjectURL(a.href);
+      toast("Downloaded — nova-lineup.html");
+    }).catch(()=>toast("Save needs http:// — won't work from a file:// page"));
+  }
+};
+
+/* =====================================================================
+   EVENT WIRING
+   One click listener for the whole app (delegation), one input listener
+   for the text fields. Adding a button anywhere is just markup +
+   a matching key in ACT — no wiring to remember.
+   ===================================================================== */
+document.addEventListener("click", e=>{
+  const el = e.target.closest("[data-act]");
+  if(!el) return;
+  const fn = ACT[el.dataset.act];
+  if(fn){ e.preventDefault(); fn(el); }
+});
+
+/* Text inputs update state WITHOUT a re-render — re-rendering mid-typing
+   would steal focus and drop the caret. */
+document.addEventListener("input", e=>{
+  const el = e.target, f = el.dataset.field;
+  if(f){
+    const p = P(el.dataset.id);
+    if(f==="num" && p)  p.num  = el.value.trim();
+    if(f==="name"&& p)  p.name = el.value;
+    if(f==="note")      ST(el.dataset.id).note = el.value;
+    save(); return;
+  }
+  if(el.id==="opp" || el.id==="setOpp"){
+    G.opp = el.value;
+    if(el.id==="setOpp") $("opp").value = el.value; else $("setOpp").value = el.value;
+    save(); return;
+  }
+  if(el.id==="setDate"){ G.date = el.value; save(); return; }
+  if(el.id==="setInnings"){
+    const n = Math.max(1, Math.min(12, parseInt(el.value,10)||7));
+    G.innings = n; save(); if(G.cur>n){ G.cur=n; } renderInnings(); return;
+  }
+  if(el.id==="setLimit"){ G.limit = Math.max(1, parseInt(el.value,10)||85); save(); return; }
+});
+
+/* =====================================================================
+   BOOT
+   Order of preference: this device's saved state → a roster baked into
+   the file by "Save as HTML" → the roster carried over from the Pitch
+   Tracker.
+   ===================================================================== */
+/*SEED*/var SEED_SAVED = null;/*ENDSEED*/
+
+(function boot(){
+  if(!load()){
+    APP.roster = SEED_SAVED
+      ? SEED_SAVED.roster.map(p=>Object.assign(freshPlayer(p), p, {present:true}))
+      : SEED_ROSTER.map(freshPlayer);
+    APP.game = freshGame(APP.roster);
+    APP.hist = [];
+    save();
+  }
+  G = APP.game;
+  if(!G.order.length) G.order = here().map(p=>p.id);
+  render();
+})();
+</script>
+</body>
+</html>
