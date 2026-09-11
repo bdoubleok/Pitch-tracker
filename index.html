@@ -210,6 +210,48 @@
   .fb.k{background:var(--strike-d);color:#dffbe9;border-color:#2c8f57}
   .fb.bb{background:var(--ball-d);color:#fff0d6;border-color:#a86a10}
   .fb.inn{background:var(--navy-700)}
+  /* ---------- Tournament rules sheet ---------- */
+  /* A full-screen overlay, not a new page: the game state behind it is never
+     unmounted, so closing the sheet returns you to the exact same count. */
+  .sheet{position:fixed;inset:0;z-index:60;max-width:560px;margin:0 auto;background:var(--navy-950);
+    display:flex;flex-direction:column}
+  .sheet[hidden]{display:none}
+  .sheetbar{display:flex;align-items:center;gap:8px;padding:10px var(--pad);background:var(--navy-900);
+    border-bottom:1px solid var(--line);flex:0 0 auto}
+  .sheettitle{flex:1;min-width:0;font-weight:700;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sbtn{flex:0 0 auto;padding:8px 11px;border-radius:8px;background:var(--navy-800);border:1px solid var(--line);
+    font-size:.8rem;font-weight:700;color:var(--ink-dim);text-decoration:none;display:inline-block}
+  .sbtn[hidden]{display:none}
+  .sbtn.open{color:var(--ink);border-color:var(--foul)}
+  .sheetbody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:var(--pad) var(--pad) 40px}
+  .sheetbody > [hidden]{display:none}
+  .tfield{width:100%;background:var(--navy-850);border:1px solid var(--line);color:var(--ink);border-radius:8px;
+    padding:10px;font-size:.9rem;font-family:inherit}
+  textarea.tfield{min-height:132px;resize:vertical;line-height:1.55;font-size:.88rem}
+  .tfield::placeholder{color:var(--ink-faint)}
+  .droprow{display:flex;gap:8px;margin-top:9px}
+  .drop{flex:1;padding:15px 10px;border-radius:var(--r);background:var(--navy-900);border:1px dashed var(--foul);
+    color:var(--ink);font-weight:700;font-size:.88rem;text-align:center}
+  .doc{display:flex;gap:7px;align-items:stretch;margin-bottom:7px}
+  .doc .open{flex:1;min-width:0;text-align:left;padding:12px;border-radius:var(--r-sm);background:var(--navy-900);
+    border:1px solid var(--line);display:flex;gap:10px;align-items:center}
+  .doc .ic{flex:0 0 34px;height:34px;border-radius:8px;background:var(--navy-800);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:1rem}
+  .doc .nm{min-width:0}
+  .doc .nm b{display:block;font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .doc .nm span{font-size:.64rem;color:var(--ink-faint);font-family:var(--mono)}
+  .doc .mini{flex:0 0 38px;width:38px;border-radius:var(--r-sm);background:var(--navy-850);border:1px solid var(--line);
+    color:var(--ink-dim);font-size:.85rem}
+  .doc .mini.del{background:#3a1414;border-color:#6a2020;color:#ffd2d2}
+  .docbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  .zoomgrp{display:flex;gap:6px;flex:1}
+  .imgwrap{overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+  .imgwrap img{display:block;max-width:none}
+  .pdfframe{width:100%;height:72vh;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+  .doctext{white-space:pre-wrap;word-wrap:break-word;font-family:var(--mono);font-size:.8rem;line-height:1.6;
+    background:var(--navy-900);border:1px solid var(--line);border-radius:var(--r);padding:13px;margin:0}
+  .qb.rules{background:var(--navy-900);border-color:var(--foul);color:var(--ink)}
+
   .toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--navy-700);border:1px solid var(--line);
     color:var(--ink);padding:9px 16px;border-radius:30px;font-size:.8rem;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50}
   .toast.show{opacity:1}
@@ -291,6 +333,7 @@
     <button class="qb" data-act="fieldErr">+ ERROR<br><span class="faint" style="font-size:.58rem">(missed out)</span></button>
     <button class="qb" data-act="outManual">+ OUT</button>
     <button class="qb undo" data-act="undo">↶ UNDO</button>
+    <button class="qb rules" data-act="openRules">📖 RULES<br><span class="faint" style="font-size:.58rem" id="rulesCount">tournament</span></button>
   </div>
 </section>
 
@@ -424,6 +467,36 @@
   <button class="fb inn" data-act="endInning">END INNING ▸</button>
 </div>
 
+<div class="sheet" id="rulesSheet" hidden>
+  <div class="sheetbar">
+    <button class="sbtn" id="rulesBack" data-act="rulesBack" hidden>‹ BACK</button>
+    <div class="sheettitle" id="rulesTitle">Tournament rules</div>
+    <button class="sbtn" data-act="closeRules">✕</button>
+  </div>
+  <div class="sheetbody">
+    <div id="rulesList">
+      <div class="seclab" style="margin-top:2px">TOURNAMENT</div>
+      <input id="tournName" class="tfield" placeholder="Tournament name…">
+
+      <div class="seclab">QUICK REFERENCE — the rules you actually need mid-inning</div>
+      <textarea id="tournNotes" class="tfield" placeholder="Pitch limits: 85 / 4 days rest over 65&#10;No new inning after 1:45&#10;Dropped 3rd strike: yes&#10;Mercy: 10 after 4, 8 after 5&#10;Courtesy runner for C with 2 outs"></textarea>
+
+      <div class="seclab">RULES DOCUMENTS</div>
+      <div id="docList"></div>
+      <div class="droprow">
+        <button class="drop" data-act="pickFile">＋ UPLOAD RULES<br><span class="faint" style="font-weight:400;font-size:.68rem">PDF · photo · text</span></button>
+      </div>
+      <input type="file" id="ruleFile" multiple hidden
+             accept=".pdf,application/pdf,image/*,.txt,.md,.text,text/plain,text/markdown">
+      <div class="faint" style="font-size:.7rem;margin-top:12px;line-height:1.55">
+        Files are stored on this device only — nothing uploads to a server, so they open instantly
+        at the field with no signal. Each team keeps its own tournament, and RESET GAME leaves the rules alone.
+      </div>
+    </div>
+    <div id="rulesDoc" hidden></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -489,7 +562,15 @@ function freshGame(roster){
   };
 }
 function uid(){ return Math.random().toString(36).slice(2,9); }
-function freshTeam(name, roster){ return { id:uid(), name, game:freshGame(roster), hist:[] }; }
+// A tournament rides on the TEAM (not the game) so RESET GAME never clears your rules.
+// Only lightweight metadata lives here — the files themselves go to IndexedDB.
+function freshTourn(){ return { name:"", notes:"", docs:[] }; }
+function normalizeTourn(t){
+  if(!t || typeof t!=="object") return freshTourn();
+  return { name:t.name||"", notes:t.notes||"",
+           docs:Array.isArray(t.docs)? t.docs.filter(d=>d&&d.id) : [] };
+}
+function freshTeam(name, roster){ return { id:uid(), name, game:freshGame(roster), tourn:freshTourn(), hist:[] }; }
 
 // Forward-compat: make sure a loaded game has every field this version expects.
 function normalizeGame(g){
@@ -510,14 +591,14 @@ function normalizeGame(g){
 let APP, S, HIST;
 function persist(){
   try{ localStorage.setItem("npt_app_v2", JSON.stringify({
-    active:APP.active, teams:APP.teams.map(t=>({id:t.id,name:t.name,game:t.game})) // hist is session-only
+    active:APP.active, teams:APP.teams.map(t=>({id:t.id,name:t.name,game:t.game,tourn:t.tourn})) // hist is session-only
   })); }catch(_){}
 }
 function loadApp(){
   try{
     const j=localStorage.getItem("npt_app_v2");
     if(j){ const o=JSON.parse(j);
-      APP={ active:o.active||0, teams:(o.teams||[]).map(t=>({id:t.id||uid(),name:t.name,game:normalizeGame(t.game),hist:[]})) };
+      APP={ active:o.active||0, teams:(o.teams||[]).map(t=>({id:t.id||uid(),name:t.name,game:normalizeGame(t.game),tourn:normalizeTourn(t.tourn),hist:[]})) };
       if(APP.teams.length) return true;
     }
   }catch(_){}
@@ -531,6 +612,7 @@ function curInn(){ return S.innings[S.innings.length-1]; }
 function P(){ return S.pitchers[S.curPitcher]; }            // current pitcher
 function gt(k){ return S.pitchers.reduce((a,p)=>a+(p[k]||0),0); } // game total = sum of splits
 function shouldBeOver(){ return (S.outs + S.missedOuts) >= 3 && S.outs < 3; }
+function TOURN(){ const t=APP.teams[APP.active]; if(!t.tourn) t.tourn=freshTourn(); return t.tourn; }
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1400); }
 
 /* ---------- core mechanics ---------- */
@@ -596,6 +678,132 @@ function rollInning(){
   S.outs=0; S.missedOuts=0; clearBases();
 }
 
+/* =====================================================================
+   TOURNAMENT RULES — file storage
+   localStorage only holds strings and caps out around 5 MB, which the game
+   state already shares. A 12 MB rules PDF would blow that quota and take the
+   whole tracker down with it. IndexedDB stores real Blobs with a far larger
+   budget, so files live there and localStorage keeps only the index card:
+   id, name, type, size. Same split as a design file vs. its linked assets.
+   ===================================================================== */
+const RULES_DB="npt_rules_v1", RULES_STORE="docs", MAX_DOC=25*1024*1024;
+let _dbP=null;
+function rulesDB(){
+  if(_dbP) return _dbP;
+  _dbP=new Promise((res,rej)=>{
+    if(!window.indexedDB){ rej(new Error("no-indexeddb")); return; }
+    const r=indexedDB.open(RULES_DB,1);
+    r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(RULES_STORE)) r.result.createObjectStore(RULES_STORE,{keyPath:"id"}); };
+    r.onsuccess=()=>res(r.result);
+    r.onerror=()=>rej(r.error||new Error("indexeddb-blocked"));
+  });
+  return _dbP;
+}
+function dbOp(mode, fn){
+  return rulesDB().then(db=> new Promise((res,rej)=>{
+    let req; try{ req=fn(db.transaction(RULES_STORE,mode).objectStore(RULES_STORE)); }
+    catch(err){ rej(err); return; }
+    req.onsuccess=()=>res(req.result);
+    req.onerror=()=>rej(req.error);
+  }));
+}
+const docPut=rec=>dbOp("readwrite",st=>st.put(rec));
+const docGet=id=>dbOp("readonly", st=>st.get(id));
+const docDel=id=>dbOp("readwrite",st=>st.delete(id));
+
+function esc(t){ return String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function extType(name){
+  const e=(name.split(".").pop()||"").toLowerCase();
+  if(e==="pdf") return "application/pdf";
+  if(["png","jpg","jpeg","gif","webp","heic","heif"].includes(e)) return "image/"+(e==="jpg"?"jpeg":e);
+  return "text/plain";
+}
+function docKind(d){
+  const t=d.type||extType(d.name||"");
+  return t.startsWith("image/")? "image" : t==="application/pdf"? "pdf" : "text";
+}
+function fmtSize(b){ return b>=1048576? (b/1048576).toFixed(1)+" MB" : Math.max(1,Math.round(b/1024))+" KB"; }
+
+// Viewer state is pure UI — deliberately outside S, so it never lands in undo history.
+let CUR_URL=null, ZOOM=100, OPEN_ID=null;
+function releaseURL(){ if(CUR_URL){ URL.revokeObjectURL(CUR_URL); CUR_URL=null; } }
+function showList(){
+  releaseURL(); OPEN_ID=null;
+  $("rulesTitle").textContent="Tournament rules";
+  $("rulesBack").hidden=true;
+  $("rulesDoc").hidden=true; $("rulesDoc").innerHTML="";
+  $("rulesList").hidden=false;
+  renderDocList();
+}
+function addFiles(files){
+  const all=[...files].filter(Boolean); if(!all.length) return;
+  const big=all.filter(f=>f.size>MAX_DOC), ok=all.filter(f=>f.size<=MAX_DOC);
+  Promise.all(ok.map(f=>{
+    const id=uid()+uid(), type=f.type||extType(f.name);
+    return docPut({id, blob:f, name:f.name, type})
+      .then(()=>({id, name:f.name, type, size:f.size, added:Date.now()}), ()=>null);
+  })).then(recs=>{
+    const good=recs.filter(Boolean);
+    good.forEach(r=>TOURN().docs.push(r));
+    persist(); renderDocList(); render();
+    const bits=[];
+    if(good.length) bits.push(good.length+" file"+(good.length>1?"s":"")+" saved to this device");
+    if(big.length) bits.push(big.length+" over 25 MB skipped");
+    if(!good.length && !big.length) bits.push("Couldn\u2019t save — private browsing blocks file storage");
+    toast(bits.join(" · "));
+  });
+}
+function openDoc(id){
+  const meta=TOURN().docs.find(d=>d.id===id); if(!meta) return;
+  docGet(id).then(rec=>{
+    if(!rec||!rec.blob){ toast("That file is no longer on this device"); return; }
+    releaseURL(); CUR_URL=URL.createObjectURL(rec.blob); ZOOM=100; OPEN_ID=id;
+    $("rulesTitle").textContent=meta.name;
+    $("rulesBack").hidden=false;
+    $("rulesList").hidden=true;
+    const box=$("rulesDoc"); box.hidden=false;
+    const kind=docKind(meta);
+    const zoom = kind==="image"
+      ? '<div class="zoomgrp"><button class="sbtn" data-act="zoomDoc" data-arg="-">−</button>'+
+        '<button class="sbtn" data-act="zoomDoc" data-arg="fit">FIT</button>'+
+        '<button class="sbtn" data-act="zoomDoc" data-arg="+">＋</button></div>'
+      : '<div class="zoomgrp"></div>';
+    const bar='<div class="docbar">'+zoom+'<a class="sbtn open" href="'+CUR_URL+'" target="_blank" rel="noopener">OPEN ↗</a></div>';
+    if(kind==="image"){
+      box.innerHTML=bar+'<div class="imgwrap"><img id="docImg" src="'+CUR_URL+'" alt="'+esc(meta.name)+'"></div>';
+      applyZoom();
+    } else if(kind==="pdf"){
+      box.innerHTML=bar+'<iframe class="pdfframe" src="'+CUR_URL+'" title="'+esc(meta.name)+'"></iframe>'+
+        '<div class="faint" style="font-size:.7rem;margin-top:8px;line-height:1.5">If the PDF stays blank, tap OPEN ↗ — some phones insist on their own PDF viewer.</div>';
+    } else {
+      box.innerHTML=bar+'<div class="faint" style="padding:12px">Loading…</div>';
+      rec.blob.text().then(txt=>{ if(OPEN_ID===id) box.innerHTML=bar+'<pre class="doctext">'+esc(txt)+'</pre>'; },
+                          ()=>{ box.innerHTML=bar+'<div class="faint" style="padding:12px">Couldn\u2019t read that file as text.</div>'; });
+    }
+  }, ()=>toast("Couldn\u2019t open that file"));
+}
+function applyZoom(){
+  const img=$("docImg"); if(!img) return;
+  img.style.width = ZOOM===100? "100%" : ZOOM+"%";
+}
+function renderDocList(){
+  const docs=TOURN().docs, box=$("docList");
+  if(!docs.length){
+    box.innerHTML='<div class="faint" style="font-size:.78rem;padding:2px 0 4px">Nothing uploaded yet — add the rules PDF, or just photograph the sheet they hand you at check-in.</div>';
+    return;
+  }
+  const icon={image:"\ud83d\uddbc",pdf:"\ud83d\udcc4",text:"\ud83d\udcdd"};
+  box.innerHTML=docs.map(d=>
+    '<div class="doc">'+
+      '<button class="open" data-act="openDoc" data-arg="'+d.id+'">'+
+        '<span class="ic">'+icon[docKind(d)]+'</span>'+
+        '<span class="nm"><b>'+esc(d.name)+'</b><span>'+fmtSize(d.size||0)+'</span></span>'+
+      '</button>'+
+      '<button class="mini" data-act="renameDoc" data-arg="'+d.id+'" title="Rename">✎</button>'+
+      '<button class="mini del" data-act="delDoc" data-arg="'+d.id+'" title="Delete">✕</button>'+
+    '</div>').join("");
+}
+
 /* ---------- public actions ---------- */
 const A = {
   pitch(type){ if(!P()){ toast("Add a pitcher first — Settings ▸ Teams & Roster"); return; } snap();
@@ -658,7 +866,8 @@ const A = {
     readControls(); render(); } },
 
   // ---- team management ----
-  switchTeam(i){ activate(+i); readControls(); render(); persist(); },
+  switchTeam(i){ activate(+i); readControls(); render(); persist();
+    if(!$("rulesSheet").hidden) showList(); },
   addTeam(){ const name=prompt("New team name:","New Team"); if(name===null) return;
     APP.teams.push(freshTeam(name||("Team "+(APP.teams.length+1)), []));
     activate(APP.teams.length-1); readControls(); render(); persist();
@@ -725,6 +934,21 @@ const A = {
       S.innings.map(i=>`  ${i.no}: ${i.pitches} / ${i.walks} / ${i.errors} / ${i.walkPitches+i.eePitches} / ${i.xR.toFixed(1)} / ${i.runs}`).join("\n");
     navigator.clipboard?.writeText(txt).then(()=>toast("Summary copied"),()=>toast("Copy failed"));
   },
+  // ---- tournament rules ----
+  openRules(){ $("rulesSheet").hidden=false; document.body.style.overflow="hidden";
+    $("tournName").value=TOURN().name; $("tournNotes").value=TOURN().notes; showList(); },
+  closeRules(){ releaseURL(); $("rulesSheet").hidden=true; document.body.style.overflow=""; },
+  rulesBack(){ showList(); },
+  pickFile(){ $("ruleFile").click(); },
+  openDoc(id){ openDoc(id); },
+  zoomDoc(dir){ ZOOM = dir==="fit"? 100 : dir==="+"? Math.min(400,ZOOM+50) : Math.max(100,ZOOM-50); applyZoom(); },
+  renameDoc(id){ const d=TOURN().docs.find(x=>x.id===id); if(!d) return;
+    const n=prompt("Name this document:", d.name); if(n===null) return;
+    d.name=n.trim()||d.name; persist(); renderDocList(); },
+  delDoc(id){ const i=TOURN().docs.findIndex(d=>d.id===id); if(i<0) return;
+    if(!confirm('Delete "'+TOURN().docs[i].name+'" from this device?')) return;
+    TOURN().docs.splice(i,1); docDel(id).catch(()=>{});
+    persist(); renderDocList(); render(); toast("Deleted"); },
   saveAsHTML(){
     fetch(location.href)
       .then(r=>r.text())
@@ -762,6 +986,9 @@ function readControls(){
   const sel=$("pitcher"); sel.innerHTML="";
   S.pitchers.forEach((p,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=(p.num!==""&&p.num!=null? "#"+p.num+" ":"")+p.name; sel.appendChild(o); });
   sel.value=S.curPitcher;
+  // tournament rules panel
+  $("tournName").value = TOURN().name;
+  $("tournNotes").value = TOURN().notes;
   // prob inputs
   document.querySelectorAll(".probtbl input").forEach(inp=>{
     inp.value = S.settings.prob[inp.dataset.b][+inp.dataset.o];
@@ -776,6 +1003,10 @@ $("setGoal").addEventListener("input",e=>{S.settings.goal=+e.target.value||60; r
 document.querySelectorAll(".probtbl input").forEach(inp=>{
   inp.addEventListener("input",e=>{ S.settings.prob[inp.dataset.b][+inp.dataset.o]=parseFloat(e.target.value)||0; });
 });
+$("tournName").addEventListener("input",e=>{ TOURN().name=e.target.value; persist(); });
+$("tournNotes").addEventListener("input",e=>{ TOURN().notes=e.target.value; persist(); });
+$("ruleFile").addEventListener("change",e=>{ addFiles(e.target.files); e.target.value=""; });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !$("rulesSheet").hidden){ $("rulesBack").hidden? A.closeRules() : showList(); } });
 $("b1").addEventListener("click",()=>A.toggleBase(0));
 $("b2").addEventListener("click",()=>A.toggleBase(1));
 $("b3").addEventListener("click",()=>A.toggleBase(2));
@@ -958,6 +1189,10 @@ function render(){
         `<td style="color:${ddc}">${p.actualR}</td></tr>`;
     }).join("");
   }
+
+  // rules button badge — how many documents are loaded for this team
+  const nd=TOURN().docs.length;
+  $("rulesCount").textContent = nd? nd+" doc"+(nd===1?"":"s") : "tournament";
 
   // inning table
   const tb=$("innBody");
