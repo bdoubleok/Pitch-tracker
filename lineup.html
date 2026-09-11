@@ -168,6 +168,30 @@
     display:flex;align-items:center;justify-content:center;font-size:.8rem;color:var(--ink-dim)}
   .ord.atbat{border-color:var(--strike);background:#0e2a1d}
 
+  /* ---------- lineup size + DH ---------- */
+  .sizebar{display:flex;gap:6px}
+  .sizebar button{flex:1;padding:11px 0;border-radius:var(--r-sm);background:var(--navy-850);
+    border:1px solid var(--line);color:var(--ink-dim);font-family:var(--mono);font-weight:800;font-size:.9rem}
+  .sizebar button.on{background:var(--foul);border-color:#8fb4ff;color:#fff}
+  .sizebar button span{display:block;font-size:.48rem;letter-spacing:.6px;font-weight:700;opacity:.75;margin-top:2px}
+  .ord .role{font-family:var(--mono);font-size:.58rem;font-weight:800;letter-spacing:.5px;
+    padding:3px 6px;border-radius:5px;background:var(--navy-800);border:1px solid var(--line);
+    color:var(--ink-faint);min-width:30px;text-align:center}
+  .ord .role.eh{background:var(--ball-d);border-color:#c9871f;color:#ffe6b8}
+  .ord .role.dh{background:var(--foul-d);border-color:#4a72c9;color:#d8e5ff}
+  .dhcard{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:11px}
+  .dhcard.on{border-color:var(--foul)}
+  .dhcard.ended{border-color:var(--ink-faint);opacity:.85}
+  .dhpair{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .dhpair .half{flex:1;min-width:0}
+  .dhpair .k{font-size:.5rem;letter-spacing:1.2px;color:var(--ink-faint);font-weight:800}
+  .dhpair .v{font-weight:700;font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dhpair .arrow{color:var(--ink-faint);font-size:.9rem;flex:0 0 auto}
+  .rulerow{padding:9px 0;border-top:1px solid var(--line)}
+  .rulerow:first-child{border-top:none;padding-top:0}
+  .rulerow .h{font-size:.76rem;font-weight:700;color:var(--ink);margin-bottom:3px}
+  .rulerow .d{font-size:.72rem;color:var(--ink-dim);line-height:1.5}
+
   /* ---------- DEPTH tab ---------- */
   .prow{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:10px;margin-bottom:9px}
   .prow .top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
@@ -375,11 +399,23 @@
     </div>
 
     <div class="card">
-      <div class="row" style="margin-bottom:9px">
+      <div class="row" style="margin-bottom:10px">
         <div class="seclab grow" style="margin:0">BATTING ORDER</div>
         <button class="btn" data-act="autoorder">Reset order</button>
       </div>
-      <div id="orderList"></div>
+      <div class="seclab" style="margin:0 2px 7px">HOW MANY BAT</div>
+      <div class="sizebar" id="sizeBar"></div>
+      <div id="orderList" style="margin-top:11px"></div>
+      <div id="orderNote"></div>
+    </div>
+
+    <div class="card">
+      <div class="seclab">DESIGNATED HITTER · NFHS 3-1-4</div>
+      <div id="dhBody"></div>
+      <details class="set" style="margin:11px 0 0">
+        <summary>HOW THE NFHS DH RULE WORKS</summary>
+        <div class="body" id="dhRules"></div>
+      </details>
     </div>
   </section>
 
@@ -556,9 +592,15 @@ function freshGame(roster, prev){
     innings: prev?.innings ?? 7,
     limit: prev?.limit ?? 85,
     est: prev?.est ?? 15,       // fallback pitches/inning for projecting unthrown innings
+    // size carries to the next game; the DH does not — NFHS requires it
+    // declared fresh on each game's lineup card.
     cur:1,                      // inning currently being coached
     assign:{}, locks:{},
-    order:(roster||[]).filter(p=>p.present).map(p=>p.id),
+    order:(roster||[]).filter(p=>p.present).map(p=>p.id)
+            .slice(0, prev?.size ?? 12),
+    size: prev?.size ?? Math.min(12, Math.max(9, (roster||[]).filter(p=>p.present).length)),
+    dh:null,        // {batterId, forId, mode:"ten"|"self"} — NFHS 3-1-4
+    dhEnd:null,     // {why} once the role is terminated for the game
     atBat:0,
     stats:{},                   // playerId → {ab,h,bb,k,rbi,pitches,byInn{},rating,note}
     log:[]                      // running at-bat log, newest last
@@ -599,6 +641,9 @@ function normalize(g){
   if(g.innings===undefined) g.innings=7;
   if(g.limit===undefined) g.limit=85;
   if(g.est===undefined) g.est=15;
+  if(g.size===undefined) g.size = Math.min(12, Math.max(9, g.order.length||9));
+  if(g.dh===undefined) g.dh=null;
+  if(g.dhEnd===undefined) g.dhEnd=null;
   Object.values(g.stats).forEach(s=>{
     ["ab","h","bb","k","pa","pitches","rating"].forEach(k=>{ if(s[k]===undefined) s[k]=0; });
     s.byInn = s.byInn||{}; s.note = s.note||"";
@@ -763,9 +808,169 @@ function timeFor(id, game){
   }
   return out;
 }
+/* =====================================================================
+   LINEUP ROLES
+   Three different things get called "the bench" in baseball, and keeping
+   them apart is most of this feature:
+     · EH   — in the batting order, not in the field this inning. With a
+              10-12 player order somebody is always an EH; which player it
+              is rotates inning to inning.
+     · DEFO — the defensive player a DH bats for. Fields, never bats.
+     · SUB  — present, but not in the batting order at all. Not in the game.
+   ===================================================================== */
+const EH_LABEL = "EH";   // "extra hitter"; some scorebooks print XH
+
+function dhLive(){ return G.dh && !G.dhEnd ? G.dh : null; }
+
+/* Everyone eligible to take a defensive position right now. */
+function fielders(){
+  const ids = new Set(G.order);
+  const dh = dhLive();
+  if(dh && dh.mode==="ten"){ ids.delete(dh.batterId); ids.add(dh.forId); }
+  return APP.roster.filter(p=>p.present && ids.has(p.id));
+}
+/* Batting-order players who aren't in the field this inning — the EHs. */
+function ehFor(inn){
+  const a = A(inn), on = new Set(POSK.map(c=>a[c]).filter(Boolean));
+  const dh = dhLive();
+  // A ten-player DH also isn't in the field, but he's a DH, not an extra hitter.
+  return G.order.map(P).filter(p=>p && !on.has(p.id) && !(dh && dh.mode==="ten" && p.id===dh.batterId));
+}
+/* Present players who aren't in the batting order and aren't the DEFO. */
+function subsFor(){
+  const inGame = new Set(G.order);
+  const dh = dhLive();
+  if(dh) inGame.add(dh.forId);
+  return here().filter(p=>!inGame.has(p.id));
+}
+/* What this player is doing in this inning, for badges and the grid. */
+function roleIn(inn, id){
+  const a = A(inn);
+  const c = POSK.find(k=>a[k]===id);
+  if(c) return c;
+  const dh = dhLive();
+  if(dh && dh.mode==="ten" && id===dh.batterId) return "DH";
+  return G.order.includes(id) ? EH_LABEL : "—";
+}
 function benchFor(inn){
   const a = A(inn), on = new Set(POSK.map(c=>a[c]).filter(Boolean));
   return here().filter(p=>!on.has(p.id));
+}
+
+/* =====================================================================
+   NFHS DESIGNATED HITTER — Rule 3-1-4
+   Verified against the current NFHS rule (the expanded DH adopted for the
+   2020 season; the 2026 rules changes did not touch 3-1-4). Two legal uses:
+
+     TEN-PLAYER   A tenth starter is listed as the DH and bats for one of
+                  the nine defensive starters. That defensive player fields
+                  but never bats.
+     P/DH (SELF)  A starting defensive player is his own DH — nine starters,
+                  one of whom holds both roles. Lets him stay in the game as
+                  a hitter after he comes out of the field.
+
+   Conditions the checker enforces:
+     · Must be declared before the game. Failing to declare one precludes
+       using a DH at all that game.
+     · The DH and the player he bats for are locked into one batting slot.
+     · The role is TERMINATED for the rest of the game once the DH (or any
+       previous DH) takes a defensive position, or once the player he bats
+       for bats, pinch-hits or pinch-runs. After that the slot holds one
+       player and the team bats nine.
+
+   NOTE: NFHS has no "extra hitter". EH/XH is a travel-ball and tournament
+   convention, which is why lineup size is a separate setting from this.
+   ===================================================================== */
+const DH_RULES = [
+  ["Declare it up front",
+   "The DH must be named before the game and written on the lineup card. If you don't declare one, you can't add one later."],
+  ["One slot, two players",
+   "The DH and the player he hits for are locked into the same spot in the order. That spot can't move."],
+  ["The DEFO never bats",
+   "The defensive player being hit for plays the field but takes no turn at bat while the DH role is alive."],
+  ["Taking the field ends it",
+   "If the DH — or any previous DH — goes out to a defensive position, the DH role is over for the game."],
+  ["So does the DEFO hitting",
+   "If the player being hit for bats, pinch-hits or pinch-runs, the DH role is over for the game."],
+  ["After it ends, you bat nine",
+   "Once terminated, one player occupies that batting slot for the remainder of the game."],
+  ["A starter can be his own DH",
+   "P/DH: a starting fielder may hold both roles. If he leaves the field he can stay in as the DH; if he's substituted for as a hitter or runner, the role ends."]
+];
+
+/* Live check of the current lineup against the rule. Returns plain-language
+   problems, not rule citations — mid-game you want to know what to fix. */
+function dhCheck(){
+  const out = [];
+  const dh = G.dh;
+  if(!dh) return out;
+  const bat = P(dh.batterId), def = P(dh.forId);
+  if(!bat || !def){ out.push("The DH pairing points at a player who's no longer on the roster."); return out; }
+
+  if(G.dhEnd){
+    out.push(`DH role ended: ${G.dhEnd.why} You're batting ${G.order.length} from here.`);
+    const gone = G.dhEnd.out && P(G.dhEnd.out);
+    if(gone){
+      const still = [];
+      for(let i=G.cur;i<=G.innings;i++) if(POSK.some(k=>(G.assign[i]||{})[k]===gone.id)) still.push(i);
+      if(still.length)
+        out.push(`${last(gone.name)} left the game when the role ended, but is still in the field for ${
+          still.map(i=>"inning "+i).join(", ")}. Put someone else there.`);
+    }
+    return out;
+  }
+
+  if(dh.mode==="ten"){
+    if(!G.order.includes(dh.batterId))
+      out.push(`${last(bat.name)} is your DH but isn't in the batting order.`);
+    if(G.order.includes(dh.forId))
+      out.push(`${last(def.name)} is being hit for, so he can't also be in the batting order — that ends the DH role.`);
+    const fieldsAt = [];
+    for(let i=1;i<=G.innings;i++){ const c = POSK.find(k=>(G.assign[i]||{})[k]===dh.batterId); if(c) fieldsAt.push(i); }
+    if(fieldsAt.length)
+      out.push(`${last(bat.name)} is your DH but is down to play ${fieldsAt.map(i=>"inning "+i).join(", ")}. Taking the field ends the DH role.`);
+    let defPlays = false;
+    for(let i=1;i<=G.innings;i++) if(POSK.some(k=>(G.assign[i]||{})[k]===dh.forId)) defPlays = true;
+    if(!defPlays)
+      out.push(`${last(def.name)} is being hit for but isn't in the field anywhere. A DH has to be hitting for someone who plays.`);
+  }else{
+    let plays = false;
+    for(let i=1;i<=G.innings;i++) if(POSK.some(k=>(G.assign[i]||{})[k]===dh.batterId)) plays = true;
+    if(!plays)
+      out.push(`${last(bat.name)} is listed as his own DH (P/DH) but isn't in the field. That's fine once he's come out, but he has to start somewhere.`);
+    if(!G.order.includes(dh.batterId))
+      out.push(`${last(bat.name)} is your P/DH but isn't in the batting order.`);
+  }
+  if(G.log.length && dh.declaredAfterFirstPitch)
+    out.push("This DH was added after the game started. NFHS requires it on the lineup card before the first pitch.");
+  return out;
+}
+
+/* Terminating the role is a real, irreversible event — it's recorded rather
+   than inferred, so the app can keep showing why the team is batting nine.
+
+   Which of the two players keeps the batting slot depends on HOW it ended,
+   and getting this backwards is the classic scorekeeping mistake:
+     · DH goes out to play defense  → the DH keeps his slot, the player he was
+                                      hitting for is out of the game.
+     · The player he hit for bats   → that player takes the slot, the DH is out.
+   `keepId` says which, so the caller has to have thought about it. */
+function endDH(why, keepId){
+  if(!G.dh || G.dhEnd) return;
+  const dh = G.dh;
+  let out = null;
+  if(dh.mode==="ten"){
+    const keepDefo = keepId === dh.forId;
+    if(keepDefo){
+      const k = G.order.indexOf(dh.batterId);
+      if(k >= 0) G.order[k] = dh.forId; else if(!G.order.includes(dh.forId)) G.order.push(dh.forId);
+      out = dh.batterId;
+    }else{
+      out = dh.forId;                       // DH keeps the slot he already has
+    }
+  }
+  G.dhEnd = {why, inn:G.cur, out};
+  G.size = G.order.length;
 }
 
 /* =====================================================================
@@ -782,8 +987,10 @@ function benchFor(inn){
    ===================================================================== */
 function autofill(){
   snap();
-  const avail = here();
-  if(avail.length < 9){ toast(`Only ${avail.length} players marked present`); }
+  // Only players actually in the game can take the field: the batting order,
+  // minus a DH who doesn't field, plus the defensive player he bats for.
+  const avail = fielders();
+  if(avail.length < 9){ toast(`Only ${avail.length} players available to field`); }
 
   const played = {};                       // id → innings played so far
   const atPos  = {};                       // id → {pos: count}
@@ -989,23 +1196,95 @@ function renderLineup(){
         title="${esc(full)}">${esc(txt)}</button></td>`;
     }).join("") + `</tr>`;
   }
-  h += `<tr><td class="poslab" style="color:var(--ball)">BN</td>` + inns.map(i=>
-    `<td class="benchcell">${benchFor(i).map(p=>esc(p.num!==""?p.num:last(p.name).slice(0,2))).join("<br>")||"—"}</td>`
+  h += `<tr><td class="poslab" style="color:var(--ball)">${EH_LABEL}</td>` + inns.map(i=>
+    `<td class="benchcell">${ehFor(i).map(p=>esc(p.num!==""?p.num:last(p.name).slice(0,2))).join("<br>")||"—"}</td>`
   ).join("") + `</tr></tbody>`;
   $("grid").innerHTML = h;
 
+  $("sizeBar").innerHTML = [9,10,11,12].map(n=>
+    `<button class="${n===G.size?"on":""}" data-act="size" data-n="${n}">${n}<span>${
+      n===9?"NO EH":`${n-9} ${EH_LABEL}`}</span></button>`).join("");
+
   $("orderList").innerHTML = G.order.length ? G.order.map((id,k)=>{
     const p = P(id); if(!p) return "";
-    const s = ST(id);
+    const s = ST(id), r = roleIn(G.cur, id);
+    const rc = r===EH_LABEL ? "eh" : r==="DH" ? "dh" : "";
     return `<div class="ord ${k===G.atBat%G.order.length?"atbat":""}">
       <span class="slotno">${k+1}</span>
+      <span class="role ${rc}">${r}</span>
       <span class="nm">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</span>
-      <span class="faint tnum" style="font-size:.64rem;margin-right:4px">${s.h}/${s.ab}</span>
+      <span class="faint tnum" style="font-size:.64rem;margin-right:2px">${s.h}/${s.ab}</span>
       <button class="mini" data-act="ordup" data-k="${k}">▲</button>
       <button class="mini" data-act="orddn" data-k="${k}">▼</button>
       <button class="mini" data-act="setab" data-k="${k}" title="Bat here next">⚾</button>
     </div>`;
   }).join("") : `<div class="faint" style="font-size:.8rem">No one marked present — see the Depth tab.</div>`;
+
+  const subs = subsFor(), dh = dhLive();
+  const notes = [];
+  if(G.order.length !== G.size)
+    notes.push(`<span style="color:var(--ball)">Order holds ${G.order.length} of ${G.size} — ${
+      G.order.length < G.size ? "mark more players present on the Depth tab" : "trim it"}.</span>`);
+  if(G.size > 9) notes.push(`Badges show this inning's role. ${G.size-9} ${EH_LABEL} bat${G.size-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
+  if(dh && dh.mode==="ten") notes.push(`${esc(last(P(dh.forId)?.name||""))} fields but doesn't bat — the DH holds his slot.`);
+  if(subs.length) notes.push(`Not in the game: ${subs.map(p=>esc(last(p.name))).join(", ")}.`);
+  $("orderNote").innerHTML = notes.length
+    ? `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>` : "";
+
+  renderDH();
+}
+
+function renderDH(){
+  $("dhRules").innerHTML = DH_RULES.map(([h,d])=>
+    `<div class="rulerow"><div class="h">${esc(h)}</div><div class="d">${esc(d)}</div></div>`).join("");
+
+  const probs = dhCheck();
+  const warn = probs.length
+    ? `<div class="warnbox" style="margin:10px 0 0"><div class="h">⚠ DH RULE CHECK</div>
+       <ul>${probs.map(t=>`<li>${esc(t)}</li>`).join("")}</ul></div>` : "";
+
+  if(!G.dh){
+    const started = G.log.length > 0;
+    $("dhBody").innerHTML = `
+      <div class="dhcard">
+        <div class="muted" style="font-size:.82rem;line-height:1.5">No DH declared.</div>
+        <div class="faint" style="font-size:.66rem;margin-top:5px;line-height:1.5">${
+          started
+            ? "The game's already underway. NFHS requires the DH on the lineup card before the first pitch — adding one now would be illegal in a sanctioned game."
+            : "A DH bats for one of your nine fielders, or a starter can be his own DH (P/DH)."}</div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn wide ${started?"":"pri"}" data-act="dhadd" data-mode="ten">DH for a fielder</button>
+          <button class="btn wide" data-act="dhadd" data-mode="self">P/DH (himself)</button>
+        </div>
+      </div>${warn}`;
+    return;
+  }
+
+  const bat = P(G.dh.batterId), def = P(G.dh.forId);
+  const ended = !!G.dhEnd;
+  $("dhBody").innerHTML = `
+    <div class="dhcard ${ended?"ended":"on"}">
+      <div class="dhpair">
+        <div class="half">
+          <div class="k">${G.dh.mode==="self"?"P/DH — BATS FOR HIMSELF":"HITTER"}</div>
+          <div class="v">${esc(bat?firstN(bat.name).charAt(0)+". "+last(bat.name):"—")}</div>
+        </div>
+        ${G.dh.mode==="ten"?`<div class="arrow">bats for →</div>
+        <div class="half">
+          <div class="k">DEFENSE ONLY</div>
+          <div class="v">${esc(def?firstN(def.name).charAt(0)+". "+last(def.name):"—")}</div>
+        </div>`:""}
+      </div>
+      ${ended
+        ? `<div class="faint" style="font-size:.68rem;line-height:1.5">
+             <b style="color:var(--ink-dim)">ROLE ENDED (inning ${G.dhEnd.inn})</b> — ${esc(G.dhEnd.why)}</div>`
+        : `<div class="row">
+             <button class="btn wide" data-act="dhedit">Change pairing</button>
+             <button class="btn wide" data-act="dhend">${
+               G.dh.mode==="self" ? "End P/DH" : esc(last(P(G.dh.forId)?.name||"He"))+" bats"}</button>
+             <button class="btn wide danger" data-act="dhclear">Remove</button>
+           </div>`}
+    </div>${warn}`;
 }
 
 /* ---------------- ARMS ---------------- */
@@ -1259,7 +1538,38 @@ function openCell(inn, c){
 
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
-function closeSheet(){ UI.sheet=null; $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
+function closeSheet(){ UI.sheet=null; UI.dhPick=null;
+  $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
+
+/* Two-step picker: who hits, then who he hits for. Kept as two steps because
+   picking a pair in one list is where these UIs usually go wrong. */
+function openDHPick(){
+  const st = UI.dhPick;
+  const title = st.step==="self" ? "WHO IS HIS OWN DH?"
+    : st.step==="batter" ? "WHO IS THE DH? · STEP 1 OF 2"
+    : "WHO DOES HE BAT FOR? · STEP 2 OF 2";
+  $("sheetTitle").textContent = title;
+
+  let pool = here();
+  if(st.step==="for") pool = pool.filter(p=>p.id !== st.batterId);
+
+  $("sheetBody").innerHTML = pool.map(p=>{
+    const t = timeFor(p.id);
+    const sub = st.step==="for"
+      ? "Fields, but won't bat"
+      : st.step==="self" ? "Bats for himself — stays in as DH when he leaves the field"
+      : (G.order.includes(p.id) ? "Already batting" : "Not currently batting");
+    return `<button class="pick r2" data-act="dhpick" data-id="${p.id}">
+      <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${p.num!==""?esc(p.num):"—"}</span>
+      <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}
+        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${esc(sub)}</span></span>
+      <span class="meta">${t.total} inn</span>
+    </button>`;
+  }).join("") + `<div class="row" style="margin-top:10px">
+      <button class="btn wide" data-act="closesheet">Cancel</button></div>`;
+
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
 
 /* =====================================================================
    ACTIONS — every tap in the app lands in exactly one of these.
@@ -1289,6 +1599,14 @@ const ACT = {
     a[c] = id;
     L(inn)[c] = true;
     if(from && a[from]) L(inn)[from] = true;
+    // NFHS 3-1-4: a ten-player DH who takes a defensive position ends the role.
+    // A P/DH is already a fielder, so this never applies to him.
+    const dh = dhLive();
+    if(dh && dh.mode==="ten" && id===dh.batterId){
+      // He keeps his batting slot; the player he was hitting for is out.
+      endDH(`${last(P(id).name)} took the field in inning ${inn}.`, dh.batterId);
+      toast("DH role ended — he took the field");
+    }
     save(); closeSheet(); render();
   },
   planpick(el){ openCell(+el.dataset.i, "P"); },
@@ -1326,8 +1644,81 @@ const ACT = {
     [G.order[k-1],G.order[k]]=[G.order[k],G.order[k-1]]; save(); renderLineup(); },
   orddn(el){ const k=+el.dataset.k; if(k>=G.order.length-1) return; snap();
     [G.order[k+1],G.order[k]]=[G.order[k],G.order[k+1]]; save(); renderLineup(); },
-  autoorder(){ snap(); G.order = here().map(p=>p.id); G.atBat=0; save(); render();
+  autoorder(){ snap();
+    const dh = dhLive();
+    let pool = here().map(p=>p.id);
+    if(dh && dh.mode==="ten") pool = pool.filter(id=>id!==dh.forId);   // DEFO never bats
+    G.order = pool.slice(0, G.size); G.atBat=0; save(); render();
     toast("Order reset to roster sequence"); },
+
+  /* Lineup size. Growing pulls in whoever's present and not yet batting;
+     shrinking drops from the bottom, which is what a coach expects. */
+  size(el){
+    const n = +el.dataset.n;
+    snap();
+    G.size = n;
+    if(G.order.length > n) G.order = G.order.slice(0, n);
+    else {
+      const dh = dhLive();
+      here().forEach(p=>{
+        if(G.order.length >= n) return;
+        if(G.order.includes(p.id)) return;
+        if(dh && dh.mode==="ten" && p.id===dh.forId) return;           // he's the DEFO
+        G.order.push(p.id);
+      });
+    }
+    if(G.order.length) G.atBat = G.atBat % G.order.length;
+    save(); render();
+    const short = n - G.order.length;
+    toast(short > 0 ? `Batting ${G.order.length} — ${short} more player${short===1?"":"s"} needed`
+                    : n===9 ? "Batting 9 — no extra hitters" : `Batting ${n} — ${n-9} ${EH_LABEL}`);
+  },
+
+  dhadd(el){
+    const mode = el.dataset.mode;
+    UI.dhPick = {mode, step: mode==="self" ? "self" : "batter"};
+    openDHPick();
+  },
+  dhedit(){ UI.dhPick = {mode:G.dh.mode, step: G.dh.mode==="self"?"self":"batter"}; openDHPick(); },
+  dhpick(el){
+    const id = el.dataset.id, st = UI.dhPick;
+    if(st.step==="self"){
+      snap();
+      G.dh = {batterId:id, forId:id, mode:"self", declaredAfterFirstPitch:G.log.length>0};
+      G.dhEnd = null;
+      if(!G.order.includes(id)) G.order.unshift(id);
+      save(); closeSheet(); render(); toast(`${last(P(id).name)} is his own DH`);
+      return;
+    }
+    if(st.step==="batter"){ st.batterId = id; st.step = "for"; openDHPick(); return; }
+    // step === "for"
+    snap();
+    G.dh = {batterId:st.batterId, forId:id, mode:"ten", declaredAfterFirstPitch:G.log.length>0};
+    G.dhEnd = null;
+    // The pair shares one slot: the DH bats, the player he hits for does not.
+    G.order = G.order.filter(x=>x!==id);
+    if(!G.order.includes(st.batterId)) G.order.push(st.batterId);
+    G.size = G.order.length;
+    if(G.order.length) G.atBat = G.atBat % G.order.length;
+    save(); closeSheet(); render();
+    toast(`${last(P(st.batterId).name)} DH for ${last(P(id).name)}`);
+  },
+  dhend(){
+    const dh = dhLive(); if(!dh) return;
+    const def = P(dh.forId), bat = P(dh.batterId);
+    if(dh.mode==="self"){
+      if(!confirm(`End ${last(bat.name)}'s P/DH role?\n\nNFHS: once terminated it can't come back.`)) return;
+      snap(); endDH(`${last(bat.name)}'s P/DH role was ended.`, dh.batterId);
+    }else{
+      if(!confirm(`${last(def.name)} comes in to bat for himself?\n\nHe takes the batting slot, ${last(bat.name)} is out of the game, and the DH role is over for good. NFHS: it can't come back.`)) return;
+      snap(); endDH(`${last(def.name)} came in to bat for himself.`, dh.forId);
+    }
+    save(); render(); toast("DH role terminated");
+  },
+  dhclear(){
+    if(!confirm("Remove the DH entirely?\n\nUse this to correct a mistake before the game. To end the role mid-game, use End DH role instead.")) return;
+    snap(); G.dh=null; G.dhEnd=null; G.size=G.order.length; save(); render();
+  },
 
   /* ---- pitch count ---- */
   pitch(){
@@ -1368,7 +1759,11 @@ const ACT = {
     const p = P(el.dataset.id);
     snap();
     p.present = !p.present;
-    if(p.present){ if(!G.order.includes(p.id)) G.order.push(p.id); }
+    const dh0 = dhLive();
+    if(p.present){
+      const isDefo = dh0 && dh0.mode==="ten" && p.id===dh0.forId;
+      if(!G.order.includes(p.id) && !isDefo && G.order.length < G.size) G.order.push(p.id);
+    }
     else {
       G.order = G.order.filter(id=>id!==p.id);
       for(let i=1;i<=G.innings;i++){
@@ -1528,7 +1923,7 @@ document.addEventListener("input", e=>{
     save();
   }
   G = APP.game;
-  if(!G.order.length) G.order = here().map(p=>p.id);
+  if(!G.order.length) G.order = here().map(p=>p.id).slice(0, G.size);
   render();
 })();
 </script>
