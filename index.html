@@ -733,9 +733,16 @@ const A = {
           const roster = t.game.pitchers.map(p=>({num:p.num,name:p.name}));
           return `freshTeam(${JSON.stringify(t.name)},${JSON.stringify(roster)})`;
         }).join(',\n      ');
-        const seed = `/*SEED*/if(!loadApp()){\n    APP = { active:0, teams:[\n      ${teamsJS}\n    ] };\n  }/*ENDSEED*/`;
-        const updated = src.replace(/\/\*SEED\*\/[\s\S]*?\/\*ENDSEED\*\//, seed);
-        if(updated===src){ toast("Save error — marker not found in source"); return; }
+        // The marker is assembled from pieces on purpose: if the literal appeared
+        // here in one piece, this line would be the FIRST match in the page source
+        // and the export would overwrite its own exporter instead of the boot seed.
+        const seed = "/*"+"SEED*/if(!loadApp()){\n    APP = { active:0, teams:[\n      "
+          + teamsJS + "\n    ] };\n  }/*END"+"SEED*/";
+        const re = /\/\*SEED\*\/[\s\S]*?\/\*ENDSEED\*\//;
+        // Test for the marker rather than comparing before/after: re-exporting an
+        // unchanged roster produces an identical file, which is success, not failure.
+        if(!re.test(src)){ toast("Save error — marker not found in source"); return; }
+        const updated = src.replace(re, seed);
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([updated],{type:'text/html'}));
         a.download = 'pitch-tracker.html';
