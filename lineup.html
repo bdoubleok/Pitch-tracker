@@ -228,6 +228,45 @@
     color:var(--ink);border-radius:8px;padding:9px}
   .rrow .del{flex:0 0 36px;height:36px;border-radius:8px;background:var(--navy-850);border:1px solid var(--hit-d);color:var(--hit)}
 
+  /* ---------- ARMS tab: pitching rotation ---------- */
+  .warnbox{background:#2a1116;border:1px solid var(--hit-d);border-radius:var(--r);padding:11px 13px;margin-bottom:12px}
+  .warnbox .h{font-size:.58rem;letter-spacing:1.5px;color:var(--hit);font-weight:800;margin-bottom:7px}
+  .warnbox ul{margin:0;padding-left:16px}
+  .warnbox li{font-size:.76rem;color:#ffd2d6;line-height:1.55}
+  .planrow{display:flex;align-items:center;gap:10px;background:var(--navy-850);border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:10px;margin-bottom:6px;width:100%;text-align:left}
+  .planrow.now{border-color:var(--strike);background:#0e2a1d}
+  .planrow.done{opacity:.6}
+  .planrow .inn{font-family:var(--mono);font-weight:800;font-size:.7rem;color:var(--ink-faint);flex:0 0 24px}
+  .planrow .who{flex:1;font-weight:700;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .planrow .who.none{color:var(--ink-faint);font-weight:400}
+  .planrow .cnt{font-family:var(--mono);font-size:.62rem;color:var(--ink-faint);text-align:right;line-height:1.4;flex:0 0 auto}
+  .planrow .cnt b{font-size:.92rem;color:var(--ink);font-weight:800}
+  .planrow.proj .cnt b{color:var(--ink-dim)}
+  .armcard{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:11px;margin-bottom:8px}
+  .armcard.warn{border-color:var(--ball-d)}
+  .armcard.over{border-color:var(--warn)}
+  .armcard .top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .armcard .nm{flex:1;font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .armcard .big{font-family:var(--mono);font-weight:800;font-size:1.2rem;line-height:1}
+  .armcard .sub{font-size:.63rem;color:var(--ink-dim);font-family:var(--mono);line-height:1.5;margin-top:7px}
+  .armcard .sub b{color:var(--ink)}
+  .pill{font-size:.54rem;letter-spacing:1px;font-weight:800;padding:4px 9px;border-radius:20px;white-space:nowrap;flex:0 0 auto}
+  .pill.ready{background:var(--strike-d);color:#dffbe9}
+  .pill.resting{background:var(--ball-d);color:#ffe6b8}
+  .pill.blocked{background:var(--hit-d);color:#ffd2d6}
+  .pill.done{background:var(--navy-700);color:var(--ink-dim)}
+  .availrow{display:flex;align-items:center;gap:9px;background:var(--navy-850);border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:9px 10px;margin-bottom:6px}
+  .availrow .nm{font-weight:700;font-size:.84rem;flex:0 0 auto;max-width:38%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .availrow .why{flex:1;font-size:.6rem;color:var(--ink-faint);font-family:var(--mono);line-height:1.45;text-align:right}
+  .estrow{display:flex;align-items:center;gap:9px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line)}
+  .estrow input{flex:0 0 66px;text-align:center;background:var(--navy-800);border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;padding:9px 4px;font-family:var(--mono)}
+  /* a candidate the catcher-pitcher rule rules out is shown, but not tappable */
+  .pick.blocked{opacity:.5;border-left:3px solid var(--hit)}
+  .pick.blocked .meta{color:var(--hit)}
+
   /* ---------- Bottom nav ---------- */
   nav{position:fixed;bottom:0;left:0;right:0;z-index:40;max-width:560px;margin:0 auto;
     background:linear-gradient(0deg,var(--navy-900),rgba(11,20,41,.95));backdrop-filter:blur(10px);
@@ -344,6 +383,39 @@
     </div>
   </section>
 
+  <!-- ============ ARMS ============ -->
+  <section id="tab-arms" class="hide">
+    <div id="armWarn"></div>
+    <div class="card">
+      <div class="seclab">TODAY'S PITCHING PLAN</div>
+      <div id="planList"></div>
+      <div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.5">
+        Tap an inning to change the pitcher. This is the same P row as the Lineup grid —
+        one plan, two views. Assigning here locks the inning so Auto-fill leaves it alone.
+      </div>
+      <div class="estrow">
+        <span class="seclab grow" style="margin:0">EST. PITCHES PER INNING</span>
+        <input id="setEst" type="number" min="1" max="40">
+      </div>
+      <div class="faint" style="font-size:.6rem;margin-top:7px;line-height:1.5">
+        Used to project innings not yet thrown. A pitcher with two or more logged innings
+        in your season history is projected off his own average instead.
+      </div>
+    </div>
+    <div class="card">
+      <div class="seclab">PROJECTED WORKLOAD</div>
+      <div id="projList"></div>
+    </div>
+    <div class="card">
+      <div class="seclab">AVAILABLE TODAY</div>
+      <div id="availList"></div>
+      <div class="faint" style="font-size:.6rem;margin-top:9px;line-height:1.5">
+        Rest is MLB Pitch Smart for ages 13–14: 1–20 pitches none · 21–35 one day ·
+        36–50 two · 51–65 three · 66+ four, with a 95-pitch daily max.
+      </div>
+    </div>
+  </section>
+
   <!-- ============ DEPTH ============ -->
   <section id="tab-depth" class="hide">
     <div class="tabs2">
@@ -425,6 +497,7 @@
 <nav>
   <button class="on" data-act="tab" data-tab="field"><span class="ic">⚾</span><span class="tl">FIELD</span></button>
   <button data-act="tab" data-tab="lineup"><span class="ic">▦</span><span class="tl">LINEUP</span></button>
+  <button data-act="tab" data-tab="arms"><span class="ic">⟳</span><span class="tl">ARMS</span></button>
   <button data-act="tab" data-tab="depth"><span class="ic">☰</span><span class="tl">DEPTH</span></button>
   <button data-act="tab" data-tab="time"><span class="ic">◷</span><span class="tl">TIME</span></button>
   <button data-act="tab" data-tab="notes"><span class="ic">✎</span><span class="tl">NOTES</span></button>
@@ -482,6 +555,7 @@ function freshGame(roster, prev){
     opp:"", date:new Date().toISOString().slice(0,10),
     innings: prev?.innings ?? 7,
     limit: prev?.limit ?? 85,
+    est: prev?.est ?? 15,       // fallback pitches/inning for projecting unthrown innings
     cur:1,                      // inning currently being coached
     assign:{}, locks:{},
     order:(roster||[]).filter(p=>p.present).map(p=>p.id),
@@ -524,6 +598,7 @@ function normalize(g){
   if(g.atBat===undefined) g.atBat=0;
   if(g.innings===undefined) g.innings=7;
   if(g.limit===undefined) g.limit=85;
+  if(g.est===undefined) g.est=15;
   Object.values(g.stats).forEach(s=>{
     ["ab","h","bb","k","pa","pitches","rating"].forEach(k=>{ if(s[k]===undefined) s[k]=0; });
     s.byInn = s.byInn||{}; s.note = s.note||"";
@@ -549,10 +624,133 @@ function here(){ return APP.roster.filter(p=>p.present); }
 function A(inn){ return G.assign[inn] || (G.assign[inn] = {}); }
 function L(inn){ return G.locks[inn]  || (G.locks[inn]  = {}); }
 
-/* MLB Pitch Smart required rest for ages 13–14. The whole point of showing
-   this in-game: a coach should know the cost of the next 10 pitches BEFORE
-   throwing them, not the morning after. */
+/* =====================================================================
+   PITCHING RULES — MLB Pitch Smart, ages 13–14
+   The whole point of surfacing this in-game: a coach should know the cost
+   of the next ten pitches BEFORE they're thrown, not the morning after.
+   ===================================================================== */
+const REST_TIERS = [20, 35, 50, 65];   // upper bound of the 0/1/2/3-day tiers
+const DAILY_MAX  = 95;                 // hard Pitch Smart cap for 13–14
+const CATCH_BLOCK = 3;                 // caught this many innings → can't pitch today
+
 function restDays(n){ return n<=20?0 : n<=35?1 : n<=50?2 : n<=65?3 : 4; }
+
+/* How many more pitches before this outing costs another rest day.
+   Returns null once he's past the last tier — there's nothing left to warn about. */
+function toNextTier(n){
+  const b = REST_TIERS.find(v => v >= n);
+  return b===undefined ? null : { pitches: b - n + 1, days: restDays(b + 1) };
+}
+
+/* Dates are compared at midday so a daylight-saving shift can't move a
+   game across a day boundary and silently change a rest calculation. */
+function dayNum(d){ return d ? Math.floor(new Date(d+"T12:00:00").getTime()/86400000) : null; }
+function daysBetween(a,b){ const x=dayNum(a), y=dayNum(b); return (x===null||y===null)?null:y-x; }
+function addDays(d,n){ const x=new Date(d+"T12:00:00"); x.setDate(x.getDate()+n);
+  return x.toISOString().slice(0,10); }
+
+/* Most recent finished game in which this player actually threw. */
+function lastOuting(id){
+  let best = null;
+  APP.hist.forEach(g=>{
+    const st = g.stats && g.stats[id];
+    if(!st || !st.pitches) return;
+    if(!best || dayNum(g.date) > dayNum(best.date)) best = {date:g.date, pitches:st.pitches};
+  });
+  return best;
+}
+
+/* Innings this player is down to catch anywhere in today's grid — planned
+   innings count, not just innings already played. */
+function caughtInnings(id, grid){
+  const g = grid || G.assign;
+  let n = 0;
+  for(let i=1;i<=G.innings;i++) if((g[i]||{}).C === id) n++;
+  return n;
+}
+
+/* Can this arm legally go today? Order matters: the same-day catcher rule
+   is absolute, so it's checked before anything to do with rest. */
+function availability(id){
+  const caught = caughtInnings(id);
+  if(caught >= CATCH_BLOCK)
+    return {state:"blocked", why:`Down to catch ${caught} innings today`};
+  const s = ST(id);
+  if(s.pitches >= DAILY_MAX)
+    return {state:"blocked", why:`At the ${DAILY_MAX}-pitch daily max`};
+  const lo = lastOuting(id);
+  if(!lo) return {state:"ready", why:"No logged outings yet"};
+  const need = restDays(lo.pitches), had = daysBetween(lo.date, G.date);
+  const stub = `Last ${lo.date} · ${lo.pitches}p`;
+  if(had===null)  return {state:"ready",    why:`${stub} · set a game date to check rest`};
+  if(had >= need) return {state:"ready",    why:`${stub} · needed ${need}d, had ${had}d`};
+  return {state:"resting", why:`${stub} · needs ${need}d, has ${had}d · ready ${addDays(lo.date, need)}`};
+}
+
+/* Projected total for today = what he's already thrown, plus an estimate for
+   every inning still in front of him. Innings already pitched are never
+   estimated — actuals always win. */
+function estFor(id){
+  let p = 0, inn = 0;
+  APP.hist.forEach(g=>{
+    const st = g.stats && g.stats[id];
+    if(!st || !st.pitches) return;
+    const n = Object.values(st.byInn||{}).filter(v=>v>0).length;
+    if(n){ p += st.pitches; inn += n; }
+  });
+  return inn >= 2 ? Math.max(1, Math.round(p/inn)) : G.est;
+}
+/* "1, 2, 3, 6, 7" reads worse than "1-3, 6-7" on a phone. */
+function rangeStr(a){
+  if(!a.length) return "—";
+  const out=[]; let s=a[0], p=a[0];
+  for(let i=1;i<=a.length;i++){
+    if(a[i]===p+1){ p=a[i]; continue; }
+    out.push(s===p ? `${s}` : `${s}\u2013${p}`);
+    s=p=a[i];
+  }
+  return out.join(", ");
+}
+function project(id){
+  const s = ST(id), est = estFor(id);
+  let proj = s.pitches, planned = 0, ahead = 0;
+  for(let i=1;i<=G.innings;i++){
+    if((G.assign[i]||{}).P !== id) continue;
+    planned++;
+    if(i < G.cur) continue;                       // already in s.pitches
+    const rest = Math.max(0, est - (s.byInn[i]||0));
+    proj += rest; if(rest) ahead++;
+  }
+  return {actual:s.pitches, proj, est, planned, ahead};
+}
+
+/* The catcher–pitcher rule, evaluated against a whole grid so a swap that
+   creates a conflict is caught as reliably as a direct assignment. */
+function cpCheck(grid){
+  const out = [];
+  APP.roster.forEach(p=>{
+    let caught = 0, pitched = 0;
+    for(let i=1;i<=G.innings;i++){
+      const a = grid[i] || {};
+      if(a.C === p.id) caught++;
+      if(a.P === p.id) pitched++;
+    }
+    if(pitched > 0 && caught >= CATCH_BLOCK)
+      out.push(`${last(p.name)} is down to both pitch and catch ${caught} innings — a player who catches ${CATCH_BLOCK}+ can't pitch that day.`);
+  });
+  return out;
+}
+
+/* The grid as it WOULD be if `id` took position `c` in `inn`, swap included.
+   Used both to grey out illegal choices in the picker and to refuse the tap. */
+function prospective(inn, c, id){
+  const a = {...(G.assign[inn]||{})};
+  const from = POSK.find(k=>a[k]===id), displaced = a[c];
+  if(from){ if(displaced && displaced!==id) a[from] = displaced; else delete a[from]; }
+  a[c] = id;
+  return {...G.assign, [inn]: a};
+}
+function blockedBy(inn, c, id){ return cpCheck(prospective(inn, c, id))[0] || null; }
 
 /* ---------- derived playing time ----------
    Innings are never typed in — they're COUNTED from the grid. One source of
@@ -589,21 +787,26 @@ function autofill(){
 
   const played = {};                       // id → innings played so far
   const atPos  = {};                       // id → {pos: count}
-  avail.forEach(p=>{ played[p.id]=0; atPos[p.id]={}; });
+  const projP  = {};                       // id → pitches this plan has him throwing
+  avail.forEach(p=>{ played[p.id]=0; atPos[p.id]={}; projP[p.id]=ST(p.id).pitches; });
 
   // Carry locked assignments into the counters first so fairness sees them.
   const credit = (id,c)=>{ if(played[id]===undefined) return;
     played[id]++; atPos[id][c]=(atPos[id][c]||0)+1; };
 
+  // Clear every unlocked cell in the WHOLE grid before solving anything. The
+  // catcher-pitcher check reads the grid, so leaving stale future innings in
+  // place would have it testing against a lineup we're about to overwrite.
+  for(let i=1;i<=G.innings;i++){
+    const a = A(i), lk = L(i);
+    for(const c of POSK)
+      if(!(lk[c] && a[c] && avail.some(p=>p.id===a[c]))) delete a[c];
+  }
+
   for(let i=1;i<=G.innings;i++){
     const a = A(i), lk = L(i);
     const taken = new Set();
-
-    // 1. Honour locks. Anything not locked gets cleared and re-solved.
-    for(const c of POSK){
-      if(lk[c] && a[c] && avail.some(p=>p.id===a[c])){ taken.add(a[c]); credit(a[c],c); }
-      else delete a[c];
-    }
+    for(const c of POSK) if(a[c]){ taken.add(a[c]); credit(a[c],c); }   // surviving locks
 
     // 2. Scarcity order — fewest eligible bodies first.
     const eligible = c => avail.filter(p=>p.pos[c]>0 && !taken.has(p.id));
@@ -615,8 +818,23 @@ function autofill(){
       .map(o=>o.c);
 
     for(const c of open){
-      let pool = eligible(c);
-      if(!pool.length) pool = avail.filter(p=>!taken.has(p.id));   // last resort: anybody left
+      // A pitcher who is also down to catch CATCH_BLOCK innings is not a legal
+      // lineup, so the rule filters the candidate pool rather than being checked
+      // afterwards — the generator can never produce a lineup the UI would reject.
+      const legal = list => (c==="P"||c==="C") ? list.filter(p=>!blockedBy(i,c,p.id)) : list;
+
+      // The mound has two more gates the other eight positions don't: an arm that
+      // isn't rested from a previous game can't take the ball at all, and nobody
+      // should be penciled in past the pitch limit. Applying them here is what
+      // turns "one kid throws all seven" into an actual rotation.
+      const fresh = list => c!=="P" ? list : list.filter(p=>
+        availability(p.id).state === "ready" && projP[p.id] + estFor(p.id) <= G.limit);
+
+      let pool = fresh(legal(eligible(c)));
+      if(!pool.length) pool = legal(eligible(c));                       // relax the arm gates
+      if(!pool.length) pool = legal(avail.filter(p=>!taken.has(p.id))); // relax depth chart
+      // Still nobody? Leave the cell empty — an honest gap the Arms tab will flag
+      // beats silently writing a lineup that breaks the catcher-pitcher rule.
       if(!pool.length) continue;
 
       const prev = (G.assign[i-1]||{})[c];
@@ -638,6 +856,7 @@ function autofill(){
       // different, equally valid lineup instead of the same one forever.
 
       a[c] = best.id; taken.add(best.id); credit(best.id, c);
+      if(c==="P") projP[best.id] += estFor(best.id);
     }
   }
   save(); render();
@@ -652,7 +871,7 @@ function autofill(){
    ===================================================================== */
 function render(){
   renderInnings();
-  ({field:renderField, lineup:renderLineup, depth:renderDepth,
+  ({field:renderField, lineup:renderLineup, arms:renderArms, depth:renderDepth,
     time:renderTime, notes:renderNotes, set:renderSettings}[UI.tab] || (()=>{}))();
 }
 
@@ -728,6 +947,7 @@ function renderPitch(){
     box.className = "pcount " + state;
     const byInn = Object.entries(s.byInn).filter(([,v])=>v>0)
       .map(([i,v])=>`i${i}:${v}`).join(" · ");
+    const nt = toNextTier(n);   // the number that actually changes a decision mid-inning
     $("pcInfo").innerHTML = `
       <div class="row" style="align-items:baseline;gap:7px">
         <span class="big">${n}</span>
@@ -736,7 +956,9 @@ function renderPitch(){
       </div>
       <div class="meter ${state}"><i style="width:${pct}%"></i></div>
       <div class="faint tnum" style="font-size:.62rem;margin-top:5px">
-        REST ${restDays(n)} DAY${restDays(n)===1?"":"S"}${byInn?" · "+byInn:""}</div>`;
+        REST ${restDays(n)} DAY${restDays(n)===1?"":"S"}${byInn?" · "+byInn:""}</div>
+      ${nt?`<div class="tnum" style="font-size:.62rem;margin-top:3px;color:var(--ball)">
+        ${nt.pitches} MORE → ${nt.days} DAY${nt.days===1?"":"S"} REST</div>`:""}`;
   }
   // every arm that has thrown today, with its rest cost
   const arms = APP.roster.filter(x=>ST(x.id).pitches>0);
@@ -784,6 +1006,92 @@ function renderLineup(){
       <button class="mini" data-act="setab" data-k="${k}" title="Bat here next">⚾</button>
     </div>`;
   }).join("") : `<div class="faint" style="font-size:.8rem">No one marked present — see the Depth tab.</div>`;
+}
+
+/* ---------------- ARMS ---------------- */
+function renderArms(){ renderArmWarn(); renderPlan(); renderProj(); renderAvail();
+  $("setEst").value = G.est; }
+
+function renderArmWarn(){
+  const probs = cpCheck(G.assign);
+  for(let i=1;i<=G.innings;i++)
+    if(!(G.assign[i]||{}).P) probs.push(`Inning ${i} has no pitcher assigned.`);
+  APP.roster.forEach(p=>{
+    const pr = project(p.id);
+    if(!pr.planned) return;
+    if(pr.proj > DAILY_MAX)
+      probs.push(`${last(p.name)} projects to ${pr.proj} pitches — over the ${DAILY_MAX} daily max.`);
+    else if(pr.proj > G.limit)
+      probs.push(`${last(p.name)} projects to ${pr.proj} pitches — past your ${G.limit} limit.`);
+    const av = availability(p.id);
+    if(av.state==="resting") probs.push(`${last(p.name)} is short on rest. ${av.why}`);
+  });
+  $("armWarn").innerHTML = probs.length
+    ? `<div class="warnbox"><div class="h">⚠ ${probs.length} THING${probs.length===1?"":"S"} TO LOOK AT</div>
+       <ul>${probs.map(t=>`<li>${esc(t)}</li>`).join("")}</ul></div>`
+    : "";
+}
+
+function renderPlan(){
+  const cum = {};
+  $("planList").innerHTML = Array.from({length:G.innings},(_,k)=>k+1).map(i=>{
+    const id = (G.assign[i]||{}).P, p = P(id);
+    if(!p) return `<button class="planrow" data-act="planpick" data-i="${i}">
+        <span class="inn">${i}</span><span class="who none">— tap to assign —</span></button>`;
+    const s = ST(id);
+    const future = i > G.cur;
+    const n = future ? estFor(id) : (s.byInn[i]||0);
+    cum[id] = (cum[id]||0) + n;
+    const state = i < G.cur ? "done" : i === G.cur ? "now" : "proj";
+    return `<button class="planrow ${state}" data-act="planpick" data-i="${i}">
+      <span class="inn">${i}</span>
+      <span class="who">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(last(p.name))}</span>
+      <span class="cnt"><b>${future?"~":""}${n}</b> this inn<br>${cum[id]} total</span>
+    </button>`;
+  }).join("");
+}
+
+function renderProj(){
+  const arms = APP.roster.filter(p=>project(p.id).planned > 0 || ST(p.id).pitches > 0);
+  $("projList").innerHTML = arms.length ? arms.map(p=>{
+    const pr = project(p.id), rest = restDays(pr.proj), nt = toNextTier(pr.actual);
+    const state = pr.proj > DAILY_MAX ? "over" : pr.proj > G.limit ? "warn" : "";
+    const pct = Math.min(100, 100*pr.proj/G.limit);
+    const innList = [];
+    for(let i=1;i<=G.innings;i++) if((G.assign[i]||{}).P===p.id) innList.push(i);
+    return `<div class="armcard ${state}">
+      <div class="top">
+        <span class="nm">${esc(last(p.name))}</span>
+        <span class="big" style="${state==="over"?"color:var(--warn)":state==="warn"?"color:var(--ball)":""}">${pr.proj}</span>
+        <span class="faint tnum" style="font-size:.62rem">proj / ${G.limit}</span>
+      </div>
+      <div class="meter ${state}"><i style="width:${pct}%"></i></div>
+      <div class="sub">
+        Innings <b>${rangeStr(innList)}</b>${pr.ahead?` · <b>${pr.ahead}</b> still to go @ ~${pr.est}`:""}<br>
+        NOW <b>${pr.actual}</b> → ${restDays(pr.actual)} day${restDays(pr.actual)===1?"":"s"} rest${
+          nt?` <span style="color:var(--ball)">(${nt.pitches} more → ${nt.days}d)</span>`:""}<br>
+        IF PLAN HOLDS <b>${pr.proj}</b> → <b>${rest} day${rest===1?"":"s"}</b> rest
+      </div>
+    </div>`;
+  }).join("") : `<div class="faint" style="font-size:.78rem">Nobody's assigned to pitch yet. Tap an inning above.</div>`;
+}
+
+function renderAvail(){
+  const rank = {ready:0, resting:1, blocked:2};
+  const rows = here().filter(p=>p.pos.P > 0)
+    .map(p=>({p, av: availability(p.id), pr: project(p.id)}))
+    .sort((a,b)=> rank[a.av.state]-rank[b.av.state] || a.pr.proj-b.pr.proj);
+  $("availList").innerHTML = rows.length ? rows.map(({p,av,pr})=>{
+    const thrown = pr.actual > 0;
+    const state = thrown && av.state==="ready" ? "done" : av.state;
+    const txt = {ready:"READY", resting:"RESTING", blocked:"NO", done:"IN USE"}[state];
+    return `<div class="availrow">
+      <span class="pill ${state}">${txt}</span>
+      <span class="nm">${esc(last(p.name))}</span>
+      <span class="why">${esc(thrown?`${pr.actual}p today · ${av.why}`:av.why)}</span>
+    </div>`;
+  }).join("") : `<div class="faint" style="font-size:.78rem">
+      No one is marked as a pitcher. Set P on the Depth tab.</div>`;
 }
 
 /* ---------------- DEPTH ---------------- */
@@ -929,13 +1237,16 @@ function openCell(inn, c){
     const t = timeFor(p.id), at = t.byPos[c]||0;
     const where = POSK.find(k=>a[k]===p.id);
     const isHere = a[c]===p.id;
-    return `<button class="pick r${p.pos[c]}" data-act="assign" data-id="${p.id}"
+    const bad = isHere ? null : blockedBy(inn, c, p.id);
+    const sub = bad ? "Blocked by the catcher–pitcher rule"
+      : p.pos[c]===1 ? "Primary here" : p.pos[c]===2 ? "Can play here" : "Not on depth chart";
+    return `<button class="pick r${p.pos[c]} ${bad?"blocked":""}" ${bad?"":`data-act="assign"`} data-id="${p.id}"
         style="${isHere?"box-shadow:0 0 0 2px var(--strike)":""}">
       <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${p.num!==""?esc(p.num):"—"}</span>
       <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}
-        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">
-          ${p.pos[c]===1?"Primary here":p.pos[c]===2?"Can play here":"Not on depth chart"}</span></span>
-      <span class="meta">${t.total} inn<br>${at} at ${c}${where?`<br><span style="color:var(--ball)">now ${where}</span>`:""}</span>
+        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${esc(sub)}</span></span>
+      <span class="meta">${bad ? `caught<br>${caughtInnings(p.id)} inn`
+        : `${t.total} inn<br>${at} at ${c}${where?`<br><span style="color:var(--ball)">now ${where}</span>`:""}`}</span>
     </button>`;
   }).join("") + `
     <div class="row" style="margin-top:10px">
@@ -955,7 +1266,7 @@ function closeSheet(){ UI.sheet=null; $("scrim").classList.remove("on"); $("shee
    ===================================================================== */
 const ACT = {
   tab(el){ UI.tab = el.dataset.tab;
-    ["field","lineup","depth","time","notes","set"].forEach(t=>
+    ["field","lineup","arms","depth","time","notes","set"].forEach(t=>
       $("tab-"+t).classList.toggle("hide", t!==UI.tab));
     document.querySelectorAll("nav button").forEach(b=>
       b.classList.toggle("on", b.dataset.tab===UI.tab));
@@ -969,6 +1280,9 @@ const ACT = {
   // the two of them trade spots rather than the app silently duplicating.
   assign(el){
     const {inn,c} = UI.sheet, id = el.dataset.id;
+    // Validate the grid this tap WOULD produce, swap included, before touching state.
+    const bad = blockedBy(inn, c, id);
+    if(bad){ toast(bad.split(" — ")[0] + " — blocked"); return; }
     snap();
     const a = A(inn), from = POSK.find(k=>a[k]===id), displaced = a[c];
     if(from){ if(displaced && displaced!==id) a[from]=displaced; else delete a[from]; }
@@ -977,6 +1291,7 @@ const ACT = {
     if(from && a[from]) L(inn)[from] = true;
     save(); closeSheet(); render();
   },
+  planpick(el){ openCell(+el.dataset.i, "P"); },
   clearcell(){ const {inn,c}=UI.sheet; snap(); delete A(inn)[c]; delete L(inn)[c];
     save(); closeSheet(); render(); },
   locktoggle(){ const {inn,c}=UI.sheet; const lk=L(inn);
@@ -1191,6 +1506,8 @@ document.addEventListener("input", e=>{
     G.innings = n; save(); if(G.cur>n){ G.cur=n; } renderInnings(); return;
   }
   if(el.id==="setLimit"){ G.limit = Math.max(1, parseInt(el.value,10)||85); save(); return; }
+  if(el.id==="setEst"){ G.est = Math.max(1, Math.min(40, parseInt(el.value,10)||15)); save();
+    if(UI.tab==="arms"){ renderPlan(); renderProj(); } return; }
 });
 
 /* =====================================================================
