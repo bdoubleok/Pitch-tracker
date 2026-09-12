@@ -308,21 +308,45 @@
   .stratbar button span{display:block;font-size:.48rem;letter-spacing:.4px;opacity:.75;margin-top:2px;font-weight:700}
   .stratbar button.on{background:var(--foul-d);border-color:#8fb4ff;color:#fff}
 
-  /* ---------- LINEUP tab: by player ---------- */
-  .bprow{display:flex;align-items:center;gap:8px;width:100%;text-align:left;min-height:56px;
+  /* ---------- LINEUP tab: by player ----------
+     Modelled on a fantasy-app lineup sheet, which solves this exact problem well:
+     a section head with a right-aligned metric label, then rows where the POSITION
+     is the leading element rather than an afterthought at the end. Reading down the
+     left edge gives you the lineup card; reading down the right gives you playing
+     time. The name sits between them and no longer has to carry both jobs. */
+  .lhead{display:flex;justify-content:space-between;align-items:baseline;
+    font-family:var(--mono);font-size:.58rem;font-weight:800;letter-spacing:1.2px;
+    color:var(--ink-faint);padding:12px 2px 7px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  .lrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;min-height:62px;
     background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);
-    padding:0 8px;margin-bottom:8px}
-  .bprow:active{border-color:var(--foul)}
-  .bprow .nm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-  .bprow .nm b{font-weight:600;font-size:.88rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .bprow .nm .sub{font-size:.6rem}
-  /* The position IS the control's value, so it gets the weight of one. */
-  .slot2{flex:none;width:52px;height:44px;border-radius:9px;background:var(--navy-800);
-    border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
-    font-family:var(--mono);font-weight:800;font-size:.86rem;color:var(--ink-faint)}
-  .slot2.r1{background:var(--strike-d);border-color:#2c8f57;color:#dffbe9}
-  .slot2.r2{background:var(--foul-d);border-color:#4a72c9;color:#d8e5ff}
-  .slot2.off{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
+    padding:7px 10px 7px 7px;margin-bottom:7px}
+  .lrow:active{border-color:var(--foul)}
+  .lrow.empty{background:transparent;border-style:dashed}
+  /* The pill is the control AND the status: filled means he is in that spot, an
+     outline means he is not on the field. Same shape either way so the column
+     still scans as one thing. */
+  .pill{flex:none;width:52px;height:44px;border-radius:22px;display:flex;align-items:center;
+    justify-content:center;font-family:var(--mono);font-weight:800;font-size:.78rem;
+    background:var(--navy-800);border:1px solid var(--line);color:var(--ink-dim)}
+  .pill.r1{background:var(--strike-d);border-color:#2c8f57;color:#fff}
+  .pill.r2{background:var(--foul-d);border-color:#4a72c9;color:#fff}
+  .pill.on{background:var(--navy-700);border-color:var(--ink-faint);color:var(--ink)}
+  .pill.off{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
+  .pill.be{background:transparent;border-color:var(--ball-d);color:var(--ball)}
+  .pill.open{background:transparent;border-style:dashed;color:var(--ink-faint)}
+  .lrow .who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .lrow .who b{font-weight:600;font-size:.88rem;color:var(--ink);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .lrow .who .jn{font-family:var(--mono);font-size:.66rem;color:var(--ink-faint);margin-left:5px;font-weight:400}
+  .lrow .who .l1{font-family:var(--mono);font-size:.6rem;color:var(--foul);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .lrow .who .l2{font-family:var(--mono);font-size:.6rem;color:var(--ink-faint);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .lrow .score{flex:none;text-align:right;display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
+  .lrow .score b{font-family:var(--mono);font-size:1.05rem;font-weight:800;color:var(--ink)}
+  .lrow .score span{font-size:.5rem;letter-spacing:.8px;color:var(--ink-faint);font-weight:700}
+  .lrow.empty .score b{color:var(--ink-faint)}
+
   .slotgrid.pos9{grid-template-columns:repeat(3,1fr)}
   .slotgrid button.r1{border-color:var(--strike-d)}
   .slotgrid button.r2{border-color:var(--foul-d)}
@@ -1838,29 +1862,54 @@ function renderByPlayer(){
   const inn = G.cur, a = A(inn);
   const spot = {};                                  // playerId → position this inning
   for(const c of POSK) if(a[c]) spot[a[c]] = c;
-  const open = POSK.filter(c=>!a[c]);
 
-  const rows = fielders().slice().sort((x,y)=>{
-    const ox = spot[x.id] ? POSK.indexOf(spot[x.id]) : 99;
-    const oy = spot[y.id] ? POSK.indexOf(spot[y.id]) : 99;
-    return ox - oy || timeFor(y.id).total - timeFor(x.id).total;
-  });
+  /* Where a player is charted, shortest useful form: "1st SS · 2nd 2B". This is
+     the line that tells you whether a substitution is sensible before you make
+     it, which is the whole reason to read a bench row. */
+  const chartLine = p => {
+    const at = POSK.filter(c=>p.pos[c] > 0).sort((x,y)=>p.pos[x] - p.pos[y]);
+    return at.length ? at.slice(0,3).map(c=>`${ord(p.pos[c])} ${c}`).join(" · ")
+                       + (at.length > 3 ? ` +${at.length-3}` : "")
+                     : "Not on a depth chart";
+  };
 
-  $("byPlayer").innerHTML = rows.map(p=>{
-    const c = spot[p.id] || null, t = timeFor(p.id);
-    const cls = c ? rankCls(c, p) : "";
-    return `<button class="bprow" data-act="bppick" data-id="${p.id}">
-      <span class="nm"><b>${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${
-        esc(firstN(p.name).charAt(0)+". "+last(p.name))}</b>
-        <span class="sub faint tnum">${t.total} inn today${c ? ` · ${t.byPos[c]||0} at ${c}` : ""}</span></span>
-      <span class="slot2 ${cls}">${c || "—"}</span>
+  const row = (p, c, cls, act) => {
+    const t = timeFor(p.id);
+    return `<button class="lrow" data-act="${act}" data-id="${p.id}">
+      <span class="pill ${cls}">${c}</span>
+      <span class="who"><b>${esc(firstN(p.name).charAt(0)+". "+last(p.name))}${
+        p.num!==""?`<span class="jn">#${esc(p.num)}</span>`:""}</b>
+        <span class="l1">${esc(chartLine(p))}</span>
+        <span class="l2">${c!=="BE" ? `${t.byPos[c]||0} inn at ${c} today` : `on the bench this inning`}</span></span>
+      <span class="score"><b>${t.total}</b><span>INN</span></span>
     </button>`;
-  }).join("") +
-    `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.5">
-      Inning ${inn}. Tap a player to set his spot — only positions still open are
-      offered, so nobody can be put in two places at once.
-      ${open.length ? `<span style="color:var(--ball)">Still open: ${open.join(", ")}.</span>`
-                    : `<span style="color:var(--strike)">All nine filled.</span>`}</div>`;
+  };
+
+  // Field rows run in scorebook order — P, C, then around the horn — so the list
+  // reads the way a lineup card does rather than by whoever happens to be listed.
+  const field = POSK.map(c=>{
+    const p = P(a[c]);
+    if(!p) return `<button class="lrow empty" data-act="cell" data-i="${inn}" data-c="${c}">
+        <span class="pill open">${c}</span>
+        <span class="who"><b>Nobody here</b><span class="l1">Tap to fill this spot</span></span>
+        <span class="score"><b>—</b><span>INN</span></span>
+      </button>`;
+    return row(p, c, rankCls(c, p) || "on", "bppick");
+  }).join("");
+
+  const bench = fielders().filter(p=>!spot[p.id])
+    .sort((x,y)=> timeFor(x.id).total - timeFor(y.id).total);
+
+  const filled = POSK.filter(c=>a[c]).length;
+  $("byPlayer").innerHTML = `
+    <div class="lhead"><span>ON THE FIELD · INNING ${inn}</span><span>${filled}/9</span></div>
+    ${field}
+    <div class="lhead"><span>BENCH${bench.length?` · ${bench.length}`:""}</span><span>INN</span></div>
+    ${bench.length ? bench.map(p=>row(p, "BE", "be", "benchpick")).join("")
+      : `<div class="faint" style="font-size:.72rem;padding:6px 2px">Everyone's on the field this inning.</div>`}
+    <div class="faint" style="font-size:.62rem;margin-top:10px;line-height:1.5">
+      Tap a fielder to move him, a bench name to bring him on, or an empty spot to fill it.
+      The pill is his depth at that position — <span style="color:var(--strike)">green is 1st choice</span>.</div>`;
 }
 
 /* Which positions can this player take THIS inning: whatever is free, plus the
@@ -1870,17 +1919,23 @@ function openByPlayerPick(id){
   UI.bpPick = id;
   const inn = G.cur, a = A(inn);
   const mine = POSK.find(c=>a[c]===id) || null;
-  const choices = POSK.filter(c=>!a[c] || a[c]===id);
+  /* Every position is offered, not just the free ones. With nine filled, "only
+     what's open" is nothing at all, and swapping two fielders is the ordinary
+     mid-game move — the constraint that matters is that nobody ends up in two
+     places, and a swap keeps that. An occupied button trades the two players. */
+  const choices = POSK.slice();
   $("sheetTitle").textContent = `${label(p).toUpperCase()} · INNING ${inn}`;
   const t = timeFor(id);
   $("sheetBody").innerHTML =
     `<div class="slotgrid pos9">` + choices.map(c=>{
       const bad = blockedBy(inn, c, id);
+      const held = c!==mine && a[c] ? P(a[c]) : null;
       const rank = p.pos[c];
       const cls = c===mine ? "now" : bad ? "blocked" : rank===1 ? "r1" : rank>1 ? "r2" : "";
-      const deep = depthAt(c).length;
       return `<button class="${cls}" ${bad?"disabled":`data-act="bpset" data-c="${c}"`}>${c}
-        <span>${c===mine ? "NOW" : bad ? "BLOCKED" : rank ? ord(rank) : deep ? "OFF CHART" : `${t.byPos[c]||0} inn`}</span>
+        <span>${c===mine ? "NOW" : bad ? "BLOCKED"
+          : held ? "⇄ " + esc(last(held.name)).slice(0,5).toUpperCase()
+          : rank ? ord(rank) : depthAt(c).length ? "OFF CHART" : "OPEN"}</span>
       </button>`;
     }).join("") + `</div>` +
     (mine ? `<button class="btn wide" style="width:100%;margin-top:10px" data-act="bpclear">
@@ -2415,10 +2470,20 @@ const ACT = {
     if(!id) return;
     snap();
     const a = A(G.cur);
-    for(const k of POSK) if(a[k]===id) delete a[k];      // one position per player
+    const from = POSK.find(k=>a[k]===id) || null;     // where he is now, if anywhere
+    const other = a[c] && a[c] !== id ? a[c] : null;  // who holds the spot he wants
+    if(from === c) return;                            // already there
+
+    if(from) delete a[from];
     a[c] = id;
+    // He came off the field, so there is a spot to hand back — a real trade. If he
+    // came off the bench there is nowhere to put the other man, and he is benched.
+    if(other && from) a[from] = other;
+
     save(); render();
-    toast(`${last(P(id)?.name||"He")} at ${c}, inning ${G.cur}`);
+    toast(other ? (from ? `${last(P(id).name)} ⇄ ${last(P(other).name)}`
+                        : `${last(P(id).name)} to ${c} — ${last(P(other).name)} to the bench`)
+                : `${last(P(id)?.name||"He")} at ${c}, inning ${G.cur}`);
   },
   bpclear(){
     const id = UI.bpPick;
