@@ -160,12 +160,14 @@
     padding-top:3px;vertical-align:top}
 
   /* batting order list */
-  .ord{display:flex;align-items:center;gap:8px;background:var(--navy-850);border:1px solid var(--line);
-    border-radius:var(--r-sm);padding:7px 9px;margin-bottom:6px}
-  .ord .slotno{font-family:var(--mono);font-weight:800;color:var(--ink-faint);width:18px;text-align:center;font-size:.85rem}
-  .ord .nm{flex:1;font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ord .mini{width:30px;height:30px;border-radius:7px;background:var(--navy-800);border:1px solid var(--line);
-    display:flex;align-items:center;justify-content:center;font-size:.8rem;color:var(--ink-dim)}
+  .ord{display:flex;align-items:center;gap:6px;background:var(--navy-850);border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:7px 8px;margin-bottom:6px}
+  .ord .slotno{font-family:var(--mono);font-weight:800;color:var(--ink-faint);width:14px;text-align:center;font-size:.85rem}
+  /* min-width:0 lets the name actually shrink inside the flex row; without it a
+     flex item refuses to go below its content width and pushes the buttons off. */
+  .ord .nm{flex:1;min-width:0;font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ord .mini{flex:none;width:27px;height:29px;border-radius:7px;background:var(--navy-800);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:.78rem;color:var(--ink-dim)}
   .ord.atbat{border-color:var(--strike);background:#0e2a1d}
 
   /* ---------- lineup size + DH ---------- */
@@ -195,7 +197,9 @@
   /* ---------- DEPTH tab ---------- */
   .prow{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:10px;margin-bottom:9px}
   .prow .top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
-  .prow .nm{flex:1;font-weight:700;font-size:.94rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow .nm{flex:1;min-width:0;font-weight:700;font-size:.94rem}
+  .prow .nm b{display:block;line-height:1.2;overflow-wrap:anywhere}
+  .prow .nm .sub{display:block;margin-top:2px;font-weight:600}
   .poschips{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
   .pc{padding:8px 2px;border-radius:7px;font-family:var(--mono);font-weight:700;font-size:.72rem;
     background:var(--navy-800);border:1px solid var(--line);color:var(--ink-faint)}
@@ -1467,8 +1471,8 @@ function renderNotes(){
     const s = ST(p.id), t = timeFor(p.id);
     return `<div class="prow">
       <div class="top">
-        <div class="nm">${esc(firstN(p.name)+" "+last(p.name))}
-          <span class="faint tnum" style="font-size:.62rem">· ${t.total} inn · ${s.h}/${s.ab}${s.pitches?` · ${s.pitches}p`:""}</span>
+        <div class="nm"><b>${esc(firstN(p.name)+" "+last(p.name))}</b>
+          <span class="faint tnum sub" style="font-size:.62rem">${t.total} inn · ${s.h}/${s.ab}${s.pitches?` · ${s.pitches}p`:""}</span>
         </div>
         <div class="stars">${[1,2,3,4,5].map(n=>
           `<button class="star ${n<=s.rating?"on":""}" data-act="rate" data-id="${p.id}" data-n="${n}">★</button>`).join("")}</div>
@@ -1846,7 +1850,7 @@ const ACT = {
      page. The file is the database — hand it to an assistant coach and they
      have your whole setup, offline. */
   saveAsHTML(){
-    fetch(location.href).then(r=>r.text()).then(src=>{
+    pageSource().then(src=>{
       const seedData = { roster: APP.roster.map(p=>({id:p.id,num:p.num,name:p.name,pos:p.pos,present:true})) };
       // The marker is assembled from pieces on purpose. If the literal appeared
       // here in one piece, this line would be the FIRST match in the page source
@@ -1862,9 +1866,46 @@ const ACT = {
       a.download = "nova-lineup.html"; a.click();
       URL.revokeObjectURL(a.href);
       toast("Downloaded — nova-lineup.html");
-    }).catch(()=>toast("Save needs http:// — won't work from a file:// page"));
+    }).catch(()=>toast("Save failed — couldn't read this page's own source"));
   }
 };
+
+/* ---------------------------------------------------------------------
+   Reading our own source, so "Save as HTML" works everywhere.
+
+   On http(s) we just re-read the file we were served — pristine, byte for
+   byte. But opened from the iPhone Files app the page is a file:// URL, and
+   fetch() refuses those (CORS treats every local file as its own origin), so
+   the export used to be dead exactly where it's needed most: offline, on the
+   phone, at the field.
+
+   The fallback serializes the live document instead. The <style> and <script>
+   survive a clone untouched, so the only drift from the original is the markup
+   the app has rendered into its containers — and boot redraws every one of
+   those from state anyway, so stale markup is harmless, just bulk. We find
+   those containers by reading the app's own source for the places it writes,
+   which means a container added later is picked up for free; if that ever
+   missed one, the cost is a slightly larger file, never a broken one.
+   --------------------------------------------------------------------- */
+function renderTargets(root){
+  const js = [...root.querySelectorAll("script")].map(s=>s.textContent).join("");
+  const ids = new Set(); let m;
+  const re = /\$\("([A-Za-z0-9_]+)"\)\.innerHTML/g;
+  while((m = re.exec(js))) ids.add(m[1]);
+  return ids;
+}
+function snapshotDOM(){
+  const root = document.documentElement.cloneNode(true);
+  for(const id of renderTargets(root)){
+    const el = root.querySelector("#" + id);
+    if(el) el.innerHTML = "";
+  }
+  return "<!DOCTYPE html>\n" + root.outerHTML;
+}
+function pageSource(){
+  if(location.protocol === "file:") return Promise.resolve(snapshotDOM());
+  return fetch(location.href).then(r=>r.text()).catch(()=>snapshotDOM());
+}
 
 /* =====================================================================
    EVENT WIRING
