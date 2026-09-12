@@ -284,6 +284,51 @@
   .toggle.out{background:var(--hit-d);border-color:#b83340;color:#ffd2d6}
 
   /* by-position depth view */
+  /* ---------- strategy chips ---------- */
+  .stratbar{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .stratbar button{flex:0 0 auto;min-height:46px;padding:7px 11px;border-radius:var(--r-sm);
+    background:var(--navy-850);border:1px solid var(--line);color:var(--ink-dim);
+    font-family:var(--mono);font-weight:800;font-size:.7rem;letter-spacing:.6px}
+  .stratbar button span{display:block;font-size:.48rem;letter-spacing:.4px;opacity:.75;margin-top:2px;font-weight:700}
+  .stratbar button.on{background:var(--foul-d);border-color:#8fb4ff;color:#fff}
+
+  /* ---------- LINEUP tab: by player ---------- */
+  .bprow{display:flex;align-items:center;gap:8px;width:100%;text-align:left;min-height:56px;
+    background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);
+    padding:0 8px;margin-bottom:8px}
+  .bprow:active{border-color:var(--foul)}
+  .bprow .nm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .bprow .nm b{font-weight:600;font-size:.88rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bprow .nm .sub{font-size:.6rem}
+  /* The position IS the control's value, so it gets the weight of one. */
+  .slot2{flex:none;width:52px;height:44px;border-radius:9px;background:var(--navy-800);
+    border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-weight:800;font-size:.86rem;color:var(--ink-faint)}
+  .slot2.r1{background:var(--strike-d);border-color:#2c8f57;color:#dffbe9}
+  .slot2.r2{background:var(--foul-d);border-color:#4a72c9;color:#d8e5ff}
+  .slot2.off{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
+  .slotgrid.pos9{grid-template-columns:repeat(3,1fr)}
+  .slotgrid button.r1{border-color:var(--strike-d)}
+  .slotgrid button.r2{border-color:var(--foul-d)}
+  .slotgrid button.blocked{opacity:.4}
+
+  /* ---------- innings-by-position tracker ---------- */
+  /* Seventeen rows by nine columns has to stay readable at 390px, so the numbers
+     do the work and everything else gets out of their way: no cell borders, a
+     dot for zero, and only the name column allowed to be wide. */
+  table.trk{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.68rem}
+  table.trk th{font-size:.52rem;letter-spacing:.5px;color:var(--ink-faint);font-weight:700;
+    padding:0 0 5px;text-align:center}
+  table.trk th.who{text-align:left}
+  table.trk td{text-align:center;padding:3px 0;color:var(--ink-faint)}
+  table.trk td.has{color:var(--ink);font-weight:700}
+  table.trk td.who{text-align:left;font-family:var(--sans);font-size:.72rem;color:var(--ink-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96px;padding-right:4px}
+  table.trk td.tot{font-weight:800;color:var(--ink)}
+  table.trk th.tot{color:var(--ink-dim)}
+  table.trk td.tot.lo{color:var(--ball)}
+  table.trk tbody tr:nth-child(even){background:rgba(255,255,255,.022)}
+
   .dpos{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px;margin-bottom:9px}
   .dpos .h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-family:var(--mono);
     font-size:.7rem;font-weight:800;color:var(--strike);letter-spacing:1px;margin-bottom:8px}
@@ -481,16 +526,34 @@
   <!-- ============ LINEUP ============ -->
   <section id="tab-lineup" class="hide">
     <div class="card">
+      <div class="seclab" style="margin:0 2px 7px">AUTO-FILL FOR</div>
+      <div class="stratbar" id="stratBar"></div>
+      <div class="faint" id="stratNote" style="font-size:.62rem;margin:7px 2px 11px;line-height:1.5"></div>
       <div class="row" style="margin-bottom:10px">
         <button class="btn pri wide" data-act="autofill">⚡ Auto-fill lineup</button>
         <button class="btn wide" data-act="clearfill">Clear</button>
       </div>
-      <div class="gridwrap"><table class="lg" id="grid"></table></div>
-      <div class="faint" style="font-size:.6rem;margin-top:9px;line-height:1.5">
-        Tap any cell to assign. <span style="color:var(--strike)">Green</span> = primary spot ·
-        <span style="color:var(--foul)">Blue</span> = secondary · <span style="color:var(--hit)">Red</span> = off the depth chart.
-        Amber dot = locked (auto-fill won't touch it).
+      <div class="tabs2" style="margin-bottom:10px">
+        <button class="t on" data-act="lview" data-v="grid">GRID</button>
+        <button class="t" data-act="lview" data-v="player">BY PLAYER</button>
       </div>
+      <div id="gridWrap">
+        <div class="gridwrap"><table class="lg" id="grid"></table></div>
+        <div class="faint" style="font-size:.6rem;margin-top:9px;line-height:1.5">
+          Tap any cell to assign. <span style="color:var(--strike)">Green</span> = 1st choice there ·
+          <span style="color:var(--foul)">Blue</span> = further down the chart · <span style="color:var(--hit)">Red</span> = off it.
+          Amber dot = locked (auto-fill won't touch it).
+        </div>
+      </div>
+      <div id="byPlayer" hidden></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:9px">
+        <div class="seclab grow" style="margin:0">INNINGS BY POSITION</div>
+        <span class="faint" style="font-size:.58rem" id="trkNote"></span>
+      </div>
+      <div id="tracker"></div>
     </div>
 
     <div class="card">
@@ -561,6 +624,7 @@
     <div class="tabs2">
       <button class="t on" data-act="tview" data-v="game">THIS GAME</button>
       <button class="t" data-act="tview" data-v="season">SEASON</button>
+      <button class="t" data-act="tview" data-v="pos">BY POSITION</button>
     </div>
     <div id="timeBody"></div>
     <button class="btn wide" data-act="copy" style="width:100%;margin-top:4px">📋 Copy report</button>
@@ -721,7 +785,7 @@ function ST(id){ return G.stats[id] || (G.stats[id] = freshStat()); }
 
 let APP = { roster:[], game:null, hist:[] };
 let G;                                  // shorthand for APP.game
-let UI = { tab:"field", dview:"player", tview:"game", sheet:null };
+let UI = { tab:"field", dview:"player", lview:"grid", tview:"game", sheet:null };
 const UNDO = [];
 
 /* ---------------------------------------------------------------------
@@ -846,6 +910,15 @@ function reseat(c, ids){
 }
 function depthAt(c){
   return APP.roster.filter(p=>p.pos[c] > 0).sort((a,b)=> a.pos[c] - b.pos[c]);
+}
+/* Green = your 1st choice there, blue = further down, red = off the chart.
+   Red only means something if a chart EXISTS: with nobody listed at first base
+   there is nothing to be off, so an unbuilt position stays neutral instead of
+   painting every assignment as a mistake. */
+function rankCls(c, p){
+  if(!p) return "blank";
+  const r = p.pos[c];
+  return r === 1 ? "r1" : r > 1 ? "r2" : depthAt(c).length ? "off" : "";
 }
 
 /* The badge fits about two words, and what identifies a team is the TAIL —
@@ -1236,11 +1309,61 @@ function endDH(why, keepId){
      · variety       — spread positions around over a long game
    Locked cells are treated as immovable and just consume the player.
    ===================================================================== */
+/* ---------------------------------------------------------------------
+   Auto-fill strategies
+
+   The solver always had a philosophy baked into its weights — depth rank
+   dominates, fairness second. That is one right answer for a tournament game
+   and the wrong one for a development game, so the philosophy becomes a
+   choice. Three strategies are weight sets over the same cost function; two
+   change its shape.
+
+   What is NOT negotiable: rest days, the pitch limit and the catcher–pitcher
+   rule. Those are safety, not preference, and they stay where they are — as
+   filters on the candidate pool, so no strategy can even express an illegal
+   lineup.
+   --------------------------------------------------------------------- */
+const STRATS = [
+  {k:"best",    label:"BEST",     sub:"Strongest defence",
+   note:"Your depth chart, top down. Strongest glove at every spot — playing time will be uneven.",
+   w:{rank:1400, fair:40,  vary:20,  stay:900, back:0}},
+  {k:"balanced",label:"BALANCED", sub:"Even innings",
+   note:"Everyone lands within an inning or so of each other. Your best glove will sit sometimes.",
+   w:{rank:600,  fair:680, vary:95,  stay:240, back:0}},
+  {k:"owed",    label:"OWED",     sub:"Least played first",
+   note:"Whoever is furthest behind on the season gets the ball first, then the depth chart breaks ties.",
+   w:{rank:450,  fair:1100,vary:120, stay:120, back:0}, season:true},
+  {k:"alt",     label:"ALTERNATE",sub:"No back-to-back",
+   note:"Nobody fields two innings in a row while there's anyone left to take the spot. Maximum rotation.",
+   w:{rank:900,  fair:300, vary:90,  stay:0,   back:2600}},
+  {k:"split",   label:"SPLIT",    sub:"Two squads, half each",
+   note:"Squad A plays the first half, squad B the second. Blocks of innings instead of a shuffle.",
+   w:{rank:700,  fair:90,  vary:40,  stay:600, back:0}, split:true}
+];
+function strat(){ return STRATS.find(x=>x.k===(G.strategy||"balanced")) || STRATS[1]; }
+
 function autofill(){
   snap();
+  const S = strat(), W = S.w;
   // Only players actually in the game can take the field: the batting order,
   // minus a DH who doesn't field, plus the defensive player he bats for.
   const avail = fielders();
+  /* SPLIT doesn't deal two squads up front. Pre-dealing by talent fights the
+     depth chart — a squad with nobody charted at catcher has to borrow one, and
+     the halves bleed into each other. Instead the innings are solved in order and
+     the second half simply penalises anyone who played the first, so the split
+     falls out of the same cost function everything else uses, and respects the
+     chart on the way. */
+  const half = Math.ceil(G.innings / 2);
+  const early = new Set(), late = new Set();
+  /* Prior-season innings, computed once. Re-deriving them per candidate per cell
+     would walk every game in the history ~1000 times a fill; and adding today's
+     planned innings on top is what makes OWED mean "owed, counting what I've
+     already penciled in" rather than re-picking the same player nine times. */
+  const prior = {};
+  if(S.season) avail.forEach(p=>{
+    prior[p.id] = seasonFor(p.id).total - timeFor(p.id).total;
+  });
   if(avail.length < 9){ toast(`Only ${avail.length} players available to field`); }
 
   const played = {};                       // id → innings played so far
@@ -1296,24 +1419,33 @@ function autofill(){
       if(!pool.length) continue;
 
       const prev = (G.assign[i-1]||{})[c];
+      // ALTERNATE: did he field at all last inning, anywhere?
+      const lastInn = G.assign[i-1] || {};
+      const playedLast = new Set(POSK.map(k=>lastInn[k]).filter(Boolean));
       const best = pool.map(p=>{
-        let s = (p.pos[c]||3) * 1000;                 // depth rank dominates everything
-        s += played[p.id] * 260;                      // fairness: fewest innings gets the nod
-        s += (atPos[p.id][c]||0) * 95;                // variety: stop parking a kid in RF
-        if(p.id===prev) s -= (c==="P"||c==="C") ? 900 : 240;   // continuity
-        s += Math.random() * 80;                      // tie-break, see note below
+        // One cost function; the strategy supplies the weights. Lowest wins.
+        let s = (p.pos[c] || 3) * W.rank;                    // depth on the chart
+        s += ((S.season ? prior[p.id] : 0) + played[p.id]) * W.fair;   // who is owed innings
+        s += (atPos[p.id][c] || 0) * W.vary;                 // stop parking a kid in RF
+        if(p.id === prev) s -= (c==="P"||c==="C") ? W.stay : W.stay * 0.27; // continuity
+        if(W.back && playedLast.has(p.id)) s += W.back;      // ALTERNATE: rest him
+        /* SPLIT wants NINE players to hold a half, not seventeen to share it, so
+           within a half it pulls the other way from fairness: stick with whoever
+           is already out there, and shut out anyone who played the other half. */
+        if(S.split){
+          if((i <= half ? late : early).has(p.id)) s += 2400;
+          if((i <= half ? early : late).has(p.id)) s -= 1500;
+        }
+        s += Math.random() * 80;                             // tie-break
         return {p, s};
       }).sort((m,n)=> m.s - n.s)[0].p;
-      // Why these numbers: continuity (-240) beats one or two innings of variety
-      // (+95 each), so a fielder holds a spot for ~3 innings and then rotates.
-      // P and C get a much heavier continuity bonus (-900) because shuffling the
-      // battery mid-game is a real cost, not a fairness win. Fairness outranks
-      // both, so a player sitting on the bench always outbids a player already on.
-      // The random term is smaller than one step of any other pressure, so it can
-      // only separate genuine ties — which means tapping Auto-fill again offers a
-      // different, equally valid lineup instead of the same one forever.
+      // Why the numbers move together: the tie-break is deliberately smaller than
+      // one step of any other pressure, so it separates genuinely equal candidates
+      // without ever outvoting a real preference. Tap Auto-fill twice and you get
+      // two different valid lineups rather than the same one.
 
       a[c] = best.id; taken.add(best.id); credit(best.id, c);
+      (i <= half ? early : late).add(best.id);
       if(c==="P") projP[best.id] += estFor(best.id);
     }
   }
@@ -1438,10 +1570,7 @@ function renderLineup(){
   for(const [c,full] of POS){
     h += `<tr><td class="poslab">${c}</td>` + inns.map(i=>{
       const p = P((G.assign[i]||{})[c]);
-      const rank = p ? p.pos[c] : null;
-      // Green = your first choice there, blue = further down the chart, red = off
-      // it entirely. The exact depth number lives in the cell's title.
-      const cls = !p ? "blank" : rank===1 ? "r1" : rank>1 ? "r2" : "off";
+      const cls = rankCls(c, p);
       const lock = (G.locks[i]||{})[c] ? "locked" : "";
       const cur  = i===G.cur ? "cur" : "";
       const txt  = p ? (p.num!=="" ? p.num : last(p.name).slice(0,3)) : "·";
@@ -1465,6 +1594,21 @@ function renderLineup(){
     return `<td class="benchcell" title="${esc(who)}">${body}</td>`;
   }).join("") + `</tr></tbody>`;
   $("grid").innerHTML = h;
+
+  // ---- strategy chips ----
+  document.querySelectorAll('[data-act="lview"]').forEach(b=>
+    b.classList.toggle("on", b.dataset.v === UI.lview));
+  const S = strat();
+  $("stratBar").innerHTML = STRATS.map(x=>
+    `<button class="${x.k===S.k?"on":""}" data-act="strat" data-k="${x.k}">${x.label}<span>${x.sub}</span></button>`).join("");
+  $("stratNote").textContent = S.note;
+
+  // ---- GRID / BY PLAYER ----
+  $("gridWrap").hidden = UI.lview !== "grid";
+  $("byPlayer").hidden = UI.lview === "grid";
+  if(UI.lview === "player") renderByPlayer();
+
+  renderTracker();
 
   /* "How many bat" was a number you set, which the order then had to be dragged
      into agreement with — two controls for one idea, and a standing way for them
@@ -1659,6 +1803,102 @@ function renderAvail(){
       No one is marked as a pitcher. Set P on the Depth tab.</div>`;
 }
 
+/* The grid asks "who plays shortstop?" — position first. A coach standing in a
+   dugout asks "where does Kang go?" — player first. Same data, opposite entry
+   point, so it is a view rather than a second source of truth.
+
+   One position per player is enforced by what the picker OFFERS: a position
+   already taken this inning simply isn't in the list, so a double-assignment
+   can't be expressed. Same approach as the catcher–pitcher rule — constrain the
+   pool, don't validate the result. */
+function renderByPlayer(){
+  const inn = G.cur, a = A(inn);
+  const spot = {};                                  // playerId → position this inning
+  for(const c of POSK) if(a[c]) spot[a[c]] = c;
+  const open = POSK.filter(c=>!a[c]);
+
+  const rows = fielders().slice().sort((x,y)=>{
+    const ox = spot[x.id] ? POSK.indexOf(spot[x.id]) : 99;
+    const oy = spot[y.id] ? POSK.indexOf(spot[y.id]) : 99;
+    return ox - oy || timeFor(y.id).total - timeFor(x.id).total;
+  });
+
+  $("byPlayer").innerHTML = rows.map(p=>{
+    const c = spot[p.id] || null, t = timeFor(p.id);
+    const cls = c ? rankCls(c, p) : "";
+    return `<button class="bprow" data-act="bppick" data-id="${p.id}">
+      <span class="nm"><b>${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${
+        esc(firstN(p.name).charAt(0)+". "+last(p.name))}</b>
+        <span class="sub faint tnum">${t.total} inn today${c ? ` · ${t.byPos[c]||0} at ${c}` : ""}</span></span>
+      <span class="slot2 ${cls}">${c || "—"}</span>
+    </button>`;
+  }).join("") +
+    `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.5">
+      Inning ${inn}. Tap a player to set his spot — only positions still open are
+      offered, so nobody can be put in two places at once.
+      ${open.length ? `<span style="color:var(--ball)">Still open: ${open.join(", ")}.</span>`
+                    : `<span style="color:var(--strike)">All nine filled.</span>`}</div>`;
+}
+
+/* Which positions can this player take THIS inning: whatever is free, plus the
+   one he already holds (so the sheet can say "leave him there"). */
+function openByPlayerPick(id){
+  const p = P(id); if(!p) return;
+  UI.bpPick = id;
+  const inn = G.cur, a = A(inn);
+  const mine = POSK.find(c=>a[c]===id) || null;
+  const choices = POSK.filter(c=>!a[c] || a[c]===id);
+  $("sheetTitle").textContent = `${label(p).toUpperCase()} · INNING ${inn}`;
+  const t = timeFor(id);
+  $("sheetBody").innerHTML =
+    `<div class="slotgrid pos9">` + choices.map(c=>{
+      const bad = blockedBy(inn, c, id);
+      const rank = p.pos[c];
+      const cls = c===mine ? "now" : bad ? "blocked" : rank===1 ? "r1" : rank>1 ? "r2" : "";
+      const deep = depthAt(c).length;
+      return `<button class="${cls}" ${bad?"disabled":`data-act="bpset" data-c="${c}"`}>${c}
+        <span>${c===mine ? "NOW" : bad ? "BLOCKED" : rank ? ord(rank) : deep ? "OFF CHART" : `${t.byPos[c]||0} inn`}</span>
+      </button>`;
+    }).join("") + `</div>` +
+    (mine ? `<button class="btn wide" style="width:100%;margin-top:10px" data-act="bpclear">
+        Take ${esc(last(p.name))} off the field this inning</button>` : "") +
+    `<div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
+      Positions already filled this inning aren't shown. To move someone into a taken
+      spot, clear the player who has it first.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
+
+/* The tracker is a VIEW, not state: timeFor() already derives innings-per-position
+   from the assignment grid, so this moves the instant a cell changes and can never
+   drift from the lineup it describes. Zero prints as a dim dot so the numbers that
+   matter carry the ink. */
+function renderTracker(){
+  $("tracker").innerHTML = trackerHTML(false);
+  const rows = here();
+  const spread = rows.map(p=>timeFor(p.id).total);
+  const target = G.innings * 9 / Math.max(1, rows.length);
+  $("trkNote").textContent = rows.length
+    ? `${Math.min(...spread)}–${Math.max(...spread)} innings · ${Math.round(target*10)/10} is an even share`
+    : "";
+}
+function trackerHTML(season){
+  const rows = here();
+  const totals = rows.map(p=> season ? seasonFor(p.id).total : timeFor(p.id).total);
+  const target = season ? (totals.reduce((a,b)=>a+b,0) / Math.max(1, rows.length))
+                        : G.innings * 9 / Math.max(1, rows.length);
+  let h = `<table class="trk"><thead><tr><th class="who"></th>${
+    POSK.map(c=>`<th>${c}</th>`).join("")}<th class="tot">TOT</th></tr></thead><tbody>`;
+  h += rows.map(p=>{
+    const t = season ? seasonFor(p.id) : timeFor(p.id);
+    const lo = t.total < Math.floor(target);
+    return `<tr><td class="who">${p.num!==""?`<span class="faint tnum">${esc(p.num)}</span> `:""}${
+      esc(last(p.name))}</td>` +
+      POSK.map(c=>`<td class="${t.byPos[c]?"has":""}">${t.byPos[c] || "·"}</td>`).join("") +
+      `<td class="tot ${lo?"lo":""}">${t.total}</td></tr>`;
+  }).join("") + `</tbody></table>`;
+  return rows.length ? h : `<div class="faint" style="font-size:.78rem">Nobody marked present.</div>`;
+}
+
 /* ---------------- DEPTH ---------------- */
 function renderDepth(){
   document.querySelectorAll('[data-act="dview"]').forEach(b=>
@@ -1734,6 +1974,15 @@ function seasonFor(id){
 function renderTime(){
   document.querySelectorAll('[data-act="tview"]').forEach(b=>
     b.classList.toggle("on", b.dataset.v===UI.tview));
+  if(UI.tview==="pos"){
+    // Same matrix as the one under the lineup grid, season-wide here — one
+    // builder, two places, so the two can never tell different stories.
+    $("timeBody").innerHTML = trackerHTML(true) +
+      `<div class="faint" style="font-size:.62rem;margin-top:10px;line-height:1.5">
+        Every inning played at every position, all season. Amber totals are the players
+        furthest behind.</div>`;
+    return;
+  }
   const season = UI.tview==="season";
 
   const rows = APP.roster.map(p=>{
@@ -1845,7 +2094,7 @@ function openCell(inn, c){
 
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
-function closeSheet(){ UI.sheet=null; UI.dhPick=null; UI.movePick=null; UI.depthPick=null;
+function closeSheet(){ UI.sheet=null; UI.dhPick=null; UI.movePick=null; UI.depthPick=null; UI.bpPick=null;
   $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
 
 /* Adding to a position chart. Only players not already on it, ordered by who has
@@ -2048,6 +2297,31 @@ const ACT = {
   /* The row is the biggest target on the screen, so it gets the action a coach
      actually repeats mid-game: put the order back in sync with the field. */
   nop(){},
+  lview(el){ UI.lview = el.dataset.v; save(); renderLineup(); },
+  strat(el){ G.strategy = el.dataset.k; save(); renderLineup();
+    toast(strat().label + " — tap Auto-fill to apply"); },
+  bppick(el){ openByPlayerPick(el.dataset.id); },
+  bpset(el){
+    const id = UI.bpPick, c = el.dataset.c;
+    closeSheet();
+    if(!id) return;
+    snap();
+    const a = A(G.cur);
+    for(const k of POSK) if(a[k]===id) delete a[k];      // one position per player
+    a[c] = id;
+    save(); render();
+    toast(`${last(P(id)?.name||"He")} at ${c}, inning ${G.cur}`);
+  },
+  bpclear(){
+    const id = UI.bpPick;
+    closeSheet();
+    if(!id) return;
+    snap();
+    const a = A(G.cur);
+    for(const k of POSK) if(a[k]===id) delete a[k];
+    save(); render();
+    toast(`${last(P(id)?.name||"He")} off the field this inning`);
+  },
   movepick(el){ openMovePick(el.dataset.id); },
   moveto(el){
     const to = +el.dataset.k, id = UI.movePick && UI.movePick.id;
