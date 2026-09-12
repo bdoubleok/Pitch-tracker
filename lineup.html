@@ -302,6 +302,9 @@
   .benchwarn b{color:var(--ball);display:block;font-size:.78rem;margin-bottom:2px}
   .benchwarn .who{font-size:.76rem;color:var(--ink);line-height:1.5}
   .benchwarn .fix{font-size:.66rem;color:var(--ink-dim);margin-top:3px;line-height:1.5}
+  /* A count, not a list — reads as one value instead of eight stacked digits. */
+  .ehcount{display:inline-block;min-width:17px;padding:1px 3px;border-radius:5px;
+    background:rgba(255,176,46,.14);color:var(--ball);font-weight:800}
   .armcard.over{border-color:var(--warn)}
   .armcard .top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
   .armcard .nm{flex:1;font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -636,9 +639,12 @@ function freshGame(roster, prev){
     // declared fresh on each game's lineup card.
     cur:1,                      // inning currently being coached
     assign:{}, locks:{},
+    // Default to batting everyone who showed up — that's what a continuous
+    // order means. A smaller fixed size is a deliberate choice for sanctioned
+    // play, so it carries over from the last game once it's been made.
     order:(roster||[]).filter(p=>p.present).map(p=>p.id)
-            .slice(0, prev?.size ?? 12),
-    size: prev?.size ?? Math.min(12, Math.max(9, (roster||[]).filter(p=>p.present).length)),
+            .slice(0, prev?.size ?? Infinity),
+    size: prev?.size ?? Math.max(9, (roster||[]).filter(p=>p.present).length),
     dh:null,        // {batterId, forId, mode:"ten"|"self"} — NFHS 3-1-4
     dhEnd:null,     // {why} once the role is terminated for the game
     atBat:0,
@@ -793,7 +799,7 @@ function normalize(g){
   if(g.innings===undefined) g.innings=7;
   if(g.limit===undefined) g.limit=85;
   if(g.est===undefined) g.est=15;
-  if(g.size===undefined) g.size = Math.min(12, Math.max(9, g.order.length||9));
+  if(g.size===undefined) g.size = Math.max(9, g.order.length||9);
   if(g.dh===undefined) g.dh=null;
   if(g.dhEnd===undefined) g.dhEnd=null;
   Object.values(g.stats).forEach(s=>{
@@ -1348,14 +1354,34 @@ function renderLineup(){
         title="${esc(full)}">${esc(txt)}</button></td>`;
     }).join("") + `</tr>`;
   }
-  h += `<tr><td class="poslab" style="color:var(--ball)">${EH_LABEL}</td>` + inns.map(i=>
-    `<td class="benchcell">${ehFor(i).map(p=>esc(p.num!==""?p.num:last(p.name).slice(0,2))).join("<br>")||"—"}</td>`
-  ).join("") + `</tr></tbody>`;
+  /* Listing every extra hitter works at 10-12 batters, where there are one to
+     three of them. On a 17-man continuous order there are eight every inning,
+     and a stack of eight numbers in all seven columns becomes the loudest thing
+     on the screen while saying the least — who ISN'T fielding is the grid's
+     least interesting fact. So list them while the list is short, and switch to
+     a count once it isn't. The names stay one long-press away either way. */
+  h += `<tr><td class="poslab" style="color:var(--ball)">${EH_LABEL}</td>` + inns.map(i=>{
+    const eh = ehFor(i);
+    const who = eh.map(p=>label(p)).join(", ");
+    if(!eh.length) return `<td class="benchcell">—</td>`;
+    const body = eh.length <= 3
+      ? eh.map(p=>esc(p.num!==""?p.num:last(p.name).slice(0,2))).join("<br>")
+      : `<span class="ehcount">${eh.length}</span>`;
+    return `<td class="benchcell" title="${esc(who)}">${body}</td>`;
+  }).join("") + `</tr></tbody>`;
   $("grid").innerHTML = h;
 
-  $("sizeBar").innerHTML = [9,10,11,12].map(n=>
+  /* Fixed sizes are for sanctioned games that cap the lineup card. ALL is the
+     continuous order a fall roster actually plays — everyone present bats, and
+     the picker has to offer it as one tap, because counting to seventeen in the
+     dugout is not a user flow. Fixed options above the squad size are dropped:
+     offering "12" to a team of ten is offering a lineup that can't be filled. */
+  const present = here().length;
+  const fixed = [9,10,11,12].filter(n => n < present);
+  $("sizeBar").innerHTML = fixed.map(n=>
     `<button class="${n===G.size?"on":""}" data-act="size" data-n="${n}">${n}<span>${
-      n===9?"NO EH":`${n-9} ${EH_LABEL}`}</span></button>`).join("");
+      n===9?"NO EH":`${n-9} ${EH_LABEL}`}</span></button>`).join("")
+    + `<button class="${G.size>=present?"on":""}" data-act="size" data-n="${present}">${present}<span>ALL</span></button>`;
 
   $("orderList").innerHTML = G.order.length ? G.order.map((id,k)=>{
     const p = P(id); if(!p) return "";
