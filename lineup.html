@@ -340,6 +340,24 @@
   .ord .pospill.eh{background:rgba(255,176,46,.16);border-color:var(--ball-d);color:var(--ball)}
   .ord .pospill.dh{background:rgba(255,176,46,.16);border-color:var(--ball-d);color:var(--ball)}
   .ord .pospill.open{background:transparent;border-style:dashed;color:var(--ink-faint)}
+  /* An empty slot: same row, dashed, with the name area as the tap target. */
+  .ord.empty{background:transparent;border-style:dashed}
+  .ord .grip.ghost{opacity:.18;pointer-events:none}
+  .ord .slotno.dim{color:var(--ink-faint);opacity:.6}
+  .slotfill{flex:1;min-width:0;background:transparent;border:0;text-align:left;
+    display:flex;flex-direction:column;gap:2px;min-height:44px;justify-content:center}
+  .slotfill b{font-weight:600;font-size:.86rem;color:var(--ink-dim)}
+  .slotfill .sub{display:flex;gap:6px;align-items:center}
+  .slotkill{flex:none;width:40px;height:44px;border-radius:9px;background:transparent;
+    border:1px solid var(--line);color:var(--ink-faint);font-size:.8rem}
+  .slotkill:active{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
+  /* BE, straight off the fantasy sheet: the control that takes a starter out and
+     leaves his slot behind. Amber because it is the bench, not a delete. */
+  .benchbtn{flex:none;width:40px;height:44px;border-radius:11px;background:transparent;
+    border:1px solid var(--ball-d);color:var(--ball);font-family:var(--mono);
+    font-weight:800;font-size:.66rem;letter-spacing:.3px}
+  .benchbtn:active{background:rgba(255,176,46,.18)}
+
   .ord .innq{flex:none;text-align:right;min-width:26px;line-height:1.05}
   .ord .innq b{display:block;font-family:var(--mono);font-size:.92rem;font-weight:800;color:var(--ink)}
   .ord .innq span{font-size:.44rem;letter-spacing:.6px;color:var(--ink-faint);font-weight:700}
@@ -596,8 +614,9 @@
         <button class="btn wide" data-act="savelineup">Save</button>
       </div>
       <div class="row" style="margin-top:6px">
-        <button class="btn wide" data-act="autoorder">Reset order</button>
-        <button class="btn wide" data-act="clearfill">Clear</button>
+        <button class="btn wide" data-act="autoorder">Fill roster</button>
+        <button class="btn wide" data-act="clearfill">Clear D</button>
+        <button class="btn wide" data-act="clearcard">Empty card</button>
       </div>
     </div>
 
@@ -612,6 +631,7 @@
       <div class="pickbar" id="cardScope" style="margin-bottom:9px"></div>
       <div class="sizebar" id="sizeBar"></div>
       <div id="orderList" style="margin-top:11px"></div>
+      <div id="slotAdd"></div>
       <div id="orderNote"></div>
       <div id="benchList"></div>
     </div>
@@ -945,7 +965,11 @@ function syncFromTracker(){
     APP.roster.push(np);
     // Slot him in to bat if the order has room. If it's already full he shows
     // up on the bench line instead, which now says so loudly.
-    if(G && G.order && G.order.length < G.size) G.order.push(np.id);
+    if(G && G.order){
+      const hole = G.order.indexOf(null);
+      if(hole >= 0) G.order[hole] = np.id;
+      else if(G.order.length < G.size) G.order.push(np.id);
+    }
   });
   save();
   return fresh;
@@ -1060,6 +1084,43 @@ function firstN(n){ const b=String(n||"").split(","); return (b[1]||b[0]||"").tr
 function label(p){ return p ? (last(p.name) + (firstN(p.name)&&last(p.name)!==firstN(p.name) ? ", "+firstN(p.name).charAt(0) : "")) : ""; }
 function here(){ return APP.roster.filter(p=>p.present); }
 /* ---------------------------------------------------------------------
+   Batting slots, which can be empty
+
+   G.order is POSITIONAL: index k is the kth spot in the order, and a null there
+   is a slot nobody is batting in yet. That's what lets a bench move leave a hole
+   where the player was, instead of shuffling everyone below him up a spot, and
+   what lets the card start blank and be filled in.
+
+   Everything that asks "who is batting?" goes through batters(), because
+   G.order.length answers "how many SLOTS" and those two numbers are different
+   the moment a slot is empty. Mixing them up is the whole risk of this model.
+   --------------------------------------------------------------------- */
+function batters(){ return G.order.filter(Boolean); }
+function slotOf(id){ return G.order.indexOf(id); }
+/* The next slot at or after k that actually has a batter in it. Empty slots are
+   skipped rather than stalling the order — nobody bats in a hole. */
+function nextFilled(k){
+  const n = G.order.length;
+  if(!n) return -1;
+  for(let i = 0; i < n; i++){
+    const at = (k + i) % n;
+    if(G.order[at]) return at;
+  }
+  return -1;
+}
+function atBatId_(){ const k = nextFilled(G.atBat); return k < 0 ? null : G.order[k]; }
+/* Put someone in a slot; he leaves whatever slot he was in, so he can't bat twice. */
+function setSlot(k, id){
+  if(id){ const was = slotOf(id); if(was >= 0 && was !== k) G.order[was] = null; }
+  G.order[k] = id || null;
+}
+/* Trailing empties are noise, not slots — a card that ends in three holes is a
+   card with three fewer slots. */
+function trimSlots(){
+  while(G.order.length && !G.order[G.order.length - 1]) G.order.pop();
+}
+
+/* ---------------------------------------------------------------------
    Saved lineups
 
    A lineup is the batting order plus the defensive change points — the two
@@ -1111,7 +1172,8 @@ function applyLineup(src){
   G.locks = {};
   if(src.strategy) G.strategy = src.strategy;
   G.atBat = 0;
-  return { batting: G.order.length, dropped: [...new Set(dropped)] };
+  trimSlots();
+  return { batting: batters().length, dropped: [...new Set(dropped)] };
 }
 
 /* The last game played, as a lineup you can start from. */
@@ -1337,7 +1399,7 @@ function dhLive(){ return G.dh && !G.dhEnd ? G.dh : null; }
 
 /* Everyone eligible to take a defensive position right now. */
 function fielders(){
-  const ids = new Set(G.order);
+  const ids = new Set(batters());
   const dh = dhLive();
   if(dh && dh.mode==="ten"){ ids.delete(dh.batterId); ids.add(dh.forId); }
   return APP.roster.filter(p=>p.present && ids.has(p.id));
@@ -1347,11 +1409,11 @@ function ehFor(inn){
   const a = A(inn), on = new Set(POSK.map(c=>a[c]).filter(Boolean));
   const dh = dhLive();
   // A ten-player DH also isn't in the field, but he's a DH, not an extra hitter.
-  return G.order.map(P).filter(p=>p && !on.has(p.id) && !(dh && dh.mode==="ten" && p.id===dh.batterId));
+  return batters().map(P).filter(p=>p && !on.has(p.id) && !(dh && dh.mode==="ten" && p.id===dh.batterId));
 }
 /* Present players who aren't in the batting order and aren't the DEFO. */
 function subsFor(){
-  const inGame = new Set(G.order);
+  const inGame = new Set(batters());
   const dh = dhLive();
   if(dh) inGame.add(dh.forId);
   return here().filter(p=>!inGame.has(p.id));
@@ -1366,7 +1428,7 @@ function roleIn(inn, id){
   /* Not fielding is only "extra hitter" once there are nine fielders. Short of
      that he is simply unplaced, and saying EH would report a decision nobody
      has made — the same false signal as calling an unbuilt chart "off chart". */
-  if(!G.order.includes(id)) return "—";
+  if(!batters().includes(id)) return "—";
   return POSK.filter(k=>a[k]).length === 9 ? EH_LABEL : "—";
 }
 function benchFor(inn){
@@ -1425,7 +1487,7 @@ function dhCheck(){
   if(!bat || !def){ out.push("The DH pairing points at a player who's no longer on the roster."); return out; }
 
   if(G.dhEnd){
-    out.push(`DH role ended: ${G.dhEnd.why} You're batting ${G.order.length} from here.`);
+    out.push(`DH role ended: ${G.dhEnd.why} You're batting ${batters().length} from here.`);
     const gone = G.dhEnd.out && P(G.dhEnd.out);
     if(gone){
       const still = [];
@@ -1438,9 +1500,9 @@ function dhCheck(){
   }
 
   if(dh.mode==="ten"){
-    if(!G.order.includes(dh.batterId))
+    if(!batters().includes(dh.batterId))
       out.push(`${last(bat.name)} is your DH but isn't in the batting order.`);
-    if(G.order.includes(dh.forId))
+    if(batters().includes(dh.forId))
       out.push(`${last(def.name)} is being hit for, so he can't also be in the batting order — that ends the DH role.`);
     const fieldsAt = [];
     for(let i=1;i<=G.innings;i++){ const a=A(i), c = POSK.find(k=>a[k]===dh.batterId); if(c) fieldsAt.push(i); }
@@ -1455,7 +1517,7 @@ function dhCheck(){
     for(let i=1;i<=G.innings;i++){ const a=A(i); if(POSK.some(k=>a[k]===dh.batterId)) plays = true; }
     if(!plays)
       out.push(`${last(bat.name)} is listed as his own DH (P/DH) but isn't in the field. That's fine once he's come out, but he has to start somewhere.`);
-    if(!G.order.includes(dh.batterId))
+    if(!batters().includes(dh.batterId))
       out.push(`${last(bat.name)} is your P/DH but isn't in the batting order.`);
   }
   if(G.log.length && dh.declaredAfterFirstPitch)
@@ -1479,8 +1541,8 @@ function endDH(why, keepId){
   if(dh.mode==="ten"){
     const keepDefo = keepId === dh.forId;
     if(keepDefo){
-      const k = G.order.indexOf(dh.batterId);
-      if(k >= 0) G.order[k] = dh.forId; else if(!G.order.includes(dh.forId)) G.order.push(dh.forId);
+      const k = slotOf(dh.batterId);
+      if(k >= 0) setSlot(k, dh.forId); else if(!batters().includes(dh.forId)) G.order.push(dh.forId);
       out = dh.batterId;
     }else{
       out = dh.forId;                       // DH keeps the slot he already has
@@ -1711,16 +1773,16 @@ function renderField(){
 }
 
 function renderBatter(){
-  const n = G.order.length;
-  if(!n){ $("batter").innerHTML = `<div class="faint">No batting order — set one on the Lineup tab.</div>`;
-          $("abLog").innerHTML=""; return; }
-  const id = G.order[G.atBat % n], p = P(id), s = ST(id), t = timeFor(id);
-  const onDeck = P(G.order[(G.atBat+1) % n]);
+  const k = nextFilled(G.atBat);
+  if(k < 0){ $("batter").innerHTML = `<div class="faint">No batting order — set one on the Lineup tab.</div>`;
+             $("abLog").innerHTML=""; return; }
+  const id = G.order[k], p = P(id), s = ST(id), t = timeFor(id);
+  const onDeck = P(G.order[nextFilled(k + 1)]);
   $("batter").innerHTML = `
     <div class="jersey">${p&&p.num!==""?esc(p.num):"—"}</div>
     <div class="grow">
       <div class="nm">${p?esc(firstN(p.name)+" "+last(p.name)):"—"}</div>
-      <div class="sub">SPOT ${(G.atBat%n)+1}/${n} · ${s.h}-${s.ab} · ${s.bb} BB · ${t.total} INN</div>
+      <div class="sub">SPOT ${k+1}/${batters().length} · ${s.h}-${s.ab} · ${s.bb} BB · ${t.total} INN</div>
     </div>
     <div style="text-align:right">
       <div class="faint" style="font-size:.5rem;letter-spacing:1.2px">ON DECK</div>
@@ -1815,7 +1877,7 @@ function renderLineup(){
 
   const a1 = A(G.cur);
   const posFilled = POSK.filter(c=>a1[c]).length;
-  const batting = G.order.length;
+  const batting = batters().length;
   const ready = posFilled === 9 && batting >= 9;
   $("setupCard").classList.toggle("done", ready);
   $("setTitle").textContent = ready ? "LINEUP IS SET" : "SET THE LINEUP";
@@ -1837,7 +1899,7 @@ function renderLineup(){
      loading one is the shorter path, so it takes the emphasis and Auto-fill
      steps down; once anything is set, Auto-fill leads again. */
   const canLoad = !!lastGameLineup() || APP.saved.length > 0;
-  const loadLeads = canLoad && posFilled === 0 && G.order.length === 0;
+  const loadLeads = canLoad && posFilled === 0 && batters().length === 0;
   const fb = $("fillBtn");
   if(fb) fb.classList.toggle("pri", !loadLeads);
   const lb = $("loadBtn");
@@ -1882,21 +1944,28 @@ function renderLineup(){
      <button class="${showAll?"on":""}" data-act="cardscope" data-v="all">WHOLE ORDER<span>${n}</span></button>`;
 
   $("orderList").dataset.sortable = "order";
-  $("orderList").innerHTML = n ? G.order.map((id,k)=>{
-    const p = P(id); if(!p) return "";
+  $("orderList").innerHTML = G.order.length ? G.order.map((id,k)=>{
+    const p = id ? P(id) : null;
+    /* An empty slot is a real row, not a gap. Yahoo's sheet keeps the slot and
+       empties the player; same here — the batting spot stays so you can see the
+       hole and tap it to fill it. */
+    if(!p) return `<div class="ord empty" data-sortrow data-slot="${k}">
+      <span class="grip ghost" aria-hidden="true"></span>
+      <span class="slotno dim">${k+1}</span>
+      <button class="nm slotfill" data-act="fillslot" data-k="${k}">
+        <b>Empty slot</b><span class="sub"><span class="faint tnum">tap to fill</span></span></button>
+      <span class="pospill open">—</span>
+      <button class="slotkill" data-act="dropslot" data-k="${k}" aria-label="Remove slot ${k+1}">✕</button>
+    </div>`;
     if(!showAll && !starters.has(id)) return "";
     const t = timeFor(id), r = roleIn(G.cur, id);
-    // His defensive spot this inning — the other half of the lineup card.
     const c = POSK.find(x=>a1[x]===id) || null;
-    /* "Extra hitter" only means something once the nine are filled. Before that
-       an unplaced batter is unplaced, not an EH — calling him one would report a
-       decision the coach hasn't made yet. */
     const placed = posFilled === 9;
     const role = c ? null : (r==="DH" ? "DH" : (placed && r===EH_LABEL) ? EH_LABEL : null);
     const pcls = c ? (rankCls(c, p) || "on") : role ? (role==="DH" ? "dh" : "eh") : "open";
     const badge = c || role || "—";
     const chart = POSK.filter(x=>p.pos[x]>0).sort((x,y)=>p.pos[x]-p.pos[y]);
-    return `<div class="ord ${k===G.atBat%n?"atbat":""}" data-sortrow data-id="${id}">
+    return `<div class="ord ${k===G.atBat%Math.max(1,G.order.length)?"atbat":""}" data-sortrow data-id="${id}">
       <button class="grip" data-act="nop" aria-label="Reorder ${esc(label(p))}">
         <svg width="13" height="20" viewBox="0 0 13 20" fill="currentColor" aria-hidden="true">
           <circle cx="3" cy="4" r="1.6"/><circle cx="10" cy="4" r="1.6"/>
@@ -1910,9 +1979,12 @@ function renderLineup(){
           <span class="faint tnum">${chart.length ? esc(chart.slice(0,2).map(x=>`${ord(p.pos[x])} ${x}`).join(" · ")) : "no chart"}</span></span></span>
       <button class="pospill ${pcls}" data-act="bppick" data-id="${id}"
         aria-label="Set ${esc(label(p))}'s position">${badge}</button>
-      <span class="innq"><b>${t.total}</b><span>INN</span></span>
+      <button class="benchbtn" data-act="tobench" data-id="${id}"
+        aria-label="Bench ${esc(label(p))}">BE</button>
     </div>`;
-  }).join("") : `<div class="faint" style="font-size:.8rem">Nobody's batting yet — add players below, or mark them present on the Depth tab.</div>`;
+  }).join("") : `<div class="faint" style="font-size:.8rem">Empty card. Tap <b>+ Add slot</b> below, or <b>Auto-fill</b> to build one.</div>`;
+
+  $("slotAdd").innerHTML = `<button class="addpos" data-act="addslot">+ ADD SLOT</button>`;
 
   /* The bench used to be a sentence naming who was sitting. Naming a problem
      next to no way to fix it is the whole complaint: these are rows now, and
@@ -2378,6 +2450,7 @@ function openCell(inn, c){
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
 function closeSheet(){ UI.sheet=null; UI.dhPick=null; UI.movePick=null; UI.depthPick=null; UI.bpPick=null;
+  UI.fillSlot=null;
   UI.sheetAll=false; UI.benchPick=null; UI.benchAll=false;
   $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
 
@@ -2544,7 +2617,7 @@ function openDHPick(){
     const sub = st.step==="for"
       ? "Fields, but won't bat"
       : st.step==="self" ? "Bats for himself — stays in as DH when he leaves the field"
-      : (G.order.includes(p.id) ? "Already batting" : "Not currently batting");
+      : (batters().includes(p.id) ? "Already batting" : "Not currently batting");
     return `<button class="pick r2" data-act="dhpick" data-id="${p.id}">
       <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${p.num!==""?esc(p.num):"—"}</span>
       <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}
@@ -2626,15 +2699,27 @@ const ACT = {
   closesheet(){ closeSheet(); },
 
   autofill(){ autofill(); },
+  /* "Clear" used to wipe only the defensive grid while the batting order stayed
+     put, so the lineup card looked untouched and the button looked broken. The
+     two halves of a lineup are cleared separately now, and each says which. */
   clearfill(){
-    if(!confirm("Clear the whole defensive grid, locks included?")) return;
-    snap(); G.assign={}; G.locks={}; save(); render(); toast("Grid cleared");
+    if(!confirm("Clear the defensive positions for every inning?\n\nThe batting order stays.")) return;
+    snap(); G.assign={}; G.locks={}; save(); render(); toast("Positions cleared");
+  },
+  clearcard(){
+    if(!confirm("Empty the whole lineup card?\n\nBatting order and defensive positions both go. Your depth chart and roster are untouched.")) return;
+    snap();
+    G.order = []; G.assign = {}; G.locks = {};
+    G.size = 9; G.atBat = 0; G.dh = null; G.dhEnd = null;
+    save(); render();
+    toast("Empty card — add slots or Auto-fill");
   },
 
   /* ---- batting ---- */
   ab(el){
-    const n = G.order.length; if(!n){ toast("Set a batting order first"); return; }
-    const o = el.dataset.o, id = G.order[G.atBat % n];
+    const k = nextFilled(G.atBat);
+    if(k < 0){ toast("Set a batting order first"); return; }
+    const o = el.dataset.o, id = G.order[k];
     snap();
     const s = ST(id);
     s.pa++;
@@ -2643,11 +2728,11 @@ const ACT = {
     if(o==="BB"||o==="HBP") s.bb++;
     if(o==="K")   s.k++;
     G.log.push({id, o, inn:G.cur});
-    G.atBat = (G.atBat + 1) % n;
+    G.atBat = nextFilled(k + 1);
     save(); render();
   },
-  skip(){ const n=G.order.length; if(!n) return; snap();
-    G.atBat=(G.atBat+1)%n; save(); render(); },
+  skip(){ const k = nextFilled(G.atBat); if(k < 0) return; snap();
+    G.atBat = nextFilled(k + 1); save(); render(); },
   autoorder(){ snap();
     const dh = dhLive();
     let pool = here().map(p=>p.id);
@@ -2665,20 +2750,88 @@ const ACT = {
       const dh = dhLive();
       here().forEach(p=>{
         if(G.order.length >= n) return;
-        if(G.order.includes(p.id)) return;
+        if(batters().includes(p.id)) return;
         if(dh && dh.mode==="ten" && p.id===dh.forId) return;           // he's the DEFO
-        G.order.push(p.id);
+        // Fill a hole before adding a slot, so growing the order closes the gaps
+        // a bench move left rather than batting around them.
+        const hole = G.order.indexOf(null);
+        if(hole >= 0) G.order[hole] = p.id; else G.order.push(p.id);
       });
     }
     G.size = G.order.length;
-    if(G.order.length) G.atBat = G.atBat % G.order.length;
+    G.atBat = Math.max(0, nextFilled(G.atBat));
     save(); render();
-    toast(G.order.length===9 ? "Batting 9 — no extra hitters"
-                             : `Batting ${G.order.length} — ${G.order.length-9} ${EH_LABEL}`);
+    const nb = batters().length;
+    toast(nb===9 ? "Batting 9 — no extra hitters" : `Batting ${nb} — ${Math.max(0,nb-9)} ${EH_LABEL}`);
   },
   /* In and out of the order, one tap each. Removing is reversible and frequent,
      so it takes an undo rather than a confirmation dialog — a prompt on every
      lineup tweak would be the bigger annoyance, and ↺ is already in the header. */
+  /* Yahoo's move: the player goes to the bench and his SLOT stays, empty. The
+     order doesn't shuffle up, so slot 4 is still slot 4 and the hole is visible
+     and fillable. He also comes off the field, since a benched player isn't
+     playing defence either. */
+  tobench(el){
+    const id = el.dataset.id, p = P(id), k = slotOf(id);
+    if(k < 0) return;
+    snap();
+    G.order[k] = null;
+    benchFrom(G.cur, id);
+    G.atBat = Math.max(0, nextFilled(G.atBat));
+    save(); render();
+    toast(`${last(p?.name||"He")} to the bench — slot ${k+1} open`);
+  },
+  /* Tap an empty slot to put someone in it: whoever is present and not already
+     batting, fewest innings first, because that is who a coach is looking for. */
+  fillslot(el){
+    UI.fillSlot = +el.dataset.k;
+    const taken = new Set(batters());
+    const pool = here().filter(p=>!taken.has(p.id))
+      .sort((x,y)=> timeFor(x.id).total - timeFor(y.id).total);
+    $("sheetTitle").textContent = `WHO BATS ${UI.fillSlot + 1}?`;
+    $("sheetBody").innerHTML = (pool.length ? pool.map(p=>{
+      const t = timeFor(p.id);
+      return `<button class="pick" data-act="fillpick" data-id="${p.id}">
+        <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${p.num!==""?esc(p.num):"—"}</span>
+        <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}
+          <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+            POSK.filter(c=>p.pos[c]>0).length ? "charted at "+POSK.filter(c=>p.pos[c]>0).join(", ") : "not on a depth chart"}</span></span>
+        <span class="meta">${t.total} inn</span>
+      </button>`;
+    }).join("") : `<div class="faint" style="font-size:.78rem;padding:4px">
+        Everyone present is already batting. Mark more players present on the Depth tab.</div>`) +
+      `<div class="row" style="margin-top:10px">
+        <button class="btn wide" data-act="dropslot" data-k="${UI.fillSlot}">Remove this slot</button>
+      </div>`;
+    $("scrim").classList.add("on"); $("sheet").classList.add("on");
+  },
+  fillpick(el){
+    const k = UI.fillSlot, id = el.dataset.id;
+    closeSheet();
+    if(!(k >= 0)) return;
+    snap(); setSlot(k, id); trimSlots();
+    G.size = G.order.length;
+    save(); render();
+    toast(`${last(P(id)?.name||"He")} batting ${k+1}`);
+  },
+  /* Removing the SLOT, not the player — the order gets shorter and everyone
+     below moves up a spot, which is the opposite of benching. */
+  dropslot(el){
+    const k = +el.dataset.k;
+    closeSheet();
+    if(!(k >= 0) || k >= G.order.length) return;
+    snap();
+    G.order.splice(k, 1);
+    trimSlots();
+    G.size = G.order.length;
+    G.atBat = Math.max(0, nextFilled(G.atBat));
+    save(); render();
+    toast(`Slot ${k+1} removed`);
+  },
+  addslot(){
+    snap(); G.order.push(null); G.size = G.order.length; save(); render();
+    toast(`Slot ${G.order.length} added — tap it to fill`);
+  },
   ordout(el){
     closeSheet();
     const id = el.dataset.id, p = P(id);
@@ -2692,12 +2845,13 @@ const ACT = {
   },
   ordin(el){
     const id = el.dataset.id, p = P(id);
-    if(G.order.includes(id)) return;
+    if(batters().includes(id)) return;
     snap();
-    G.order.push(id);
+    const hole = G.order.indexOf(null);
+    if(hole >= 0) G.order[hole] = id; else G.order.push(id);
     G.size = G.order.length;
     save(); render();
-    toast(`${last(p?.name||"Player")} batting ${G.order.length}`);
+    toast(`${last(p?.name||"Player")} batting ${slotOf(id) + 1}`);
   },
   /* The row is the biggest target on the screen, so it gets the action a coach
      actually repeats mid-game: put the order back in sync with the field. */
@@ -2719,7 +2873,7 @@ const ACT = {
     APP.saved.splice(i, 1); save(); openLoadLineup();
   },
   savelineup(){
-    if(!G.order.length){ toast("Nothing to save yet"); return; }
+    if(!batters().length){ toast("Nothing to save yet"); return; }
     const dflt = G.opp ? `vs ${G.opp}` : `Lineup ${APP.saved.length + 1}`;
     const name = (prompt("Name this lineup", dflt) || "").trim();
     if(!name) return;
@@ -2770,13 +2924,13 @@ const ACT = {
     const to = +el.dataset.k, id = UI.movePick && UI.movePick.id;
     closeSheet();
     if(!id) return;
-    const from = G.order.indexOf(id);
+    const from = slotOf(id);
     if(from < 0 || to === from) return;
     snap();
-    const atBatId = G.order[G.atBat];
+    const keepId = atBatId_();
     G.order.splice(from, 1);
     G.order.splice(to, 0, id);
-    const back = G.order.indexOf(atBatId);
+    const back = G.order.indexOf(keepId);
     if(back >= 0) G.atBat = back;
     save(); render();
     toast(`${last(P(id)?.name||"He")} batting ${to+1}`);
@@ -2807,7 +2961,7 @@ const ACT = {
       snap();
       G.dh = {batterId:id, forId:id, mode:"self", declaredAfterFirstPitch:G.log.length>0};
       G.dhEnd = null;
-      if(!G.order.includes(id)) G.order.unshift(id);
+      if(!batters().includes(id)) G.order.unshift(id);
       save(); closeSheet(); render(); toast(`${last(P(id).name)} is his own DH`);
       return;
     }
@@ -2817,10 +2971,15 @@ const ACT = {
     G.dh = {batterId:st.batterId, forId:id, mode:"ten", declaredAfterFirstPitch:G.log.length>0};
     G.dhEnd = null;
     // The pair shares one slot: the DH bats, the player he hits for does not.
-    G.order = G.order.filter(x=>x!==id);
-    if(!G.order.includes(st.batterId)) G.order.push(st.batterId);
+    /* The DH bats FOR this fielder, so he takes that fielder's spot in the order
+       rather than a new one at the end — which is what "batting for him" means,
+       and avoids leaving a hole beside a freshly appended slot. */
+    const k = slotOf(id);
+    if(k >= 0) setSlot(k, st.batterId);
+    else if(!batters().includes(st.batterId)) G.order.push(st.batterId);
+    trimSlots();
     G.size = G.order.length;
-    if(G.order.length) G.atBat = G.atBat % G.order.length;
+    G.atBat = Math.max(0, nextFilled(G.atBat));
     save(); closeSheet(); render();
     toast(`${last(P(st.batterId).name)} DH for ${last(P(id).name)}`);
   },
@@ -2905,16 +3064,21 @@ const ACT = {
     const dh0 = dhLive();
     if(p.present){
       const isDefo = dh0 && dh0.mode==="ten" && p.id===dh0.forId;
-      if(!G.order.includes(p.id) && !isDefo && G.order.length < G.size) G.order.push(p.id);
+      if(!batters().includes(p.id) && !isDefo){
+        const hole = G.order.indexOf(null);
+        if(hole >= 0) G.order[hole] = p.id;
+        else if(G.order.length < G.size) G.order.push(p.id);
+      }
     }
     else {
-      G.order = G.order.filter(id=>id!==p.id);
+      { const k = slotOf(p.id); if(k >= 0) G.order[k] = null; }
+      trimSlots();
       for(let i=1;i<=G.innings;i++){
         const a=G.assign[i]||{};
         POSK.forEach(c=>{ if(a[c]===p.id){ delete a[c]; delete (G.locks[i]||{})[c]; } });
       }
     }
-    if(G.order.length) G.atBat = G.atBat % G.order.length; else G.atBat = 0;
+    G.atBat = Math.max(0, nextFilled(G.atBat));
     save(); renderDepth(); toast(p.present? last(p.name)+" is in" : last(p.name)+" pulled from lineup");
   },
 
@@ -2933,7 +3097,7 @@ const ACT = {
     if(!confirm(`Remove ${p.name||"this player"} from the roster?`)) return;
     snap();
     APP.roster = APP.roster.filter(x=>x.id!==p.id);
-    G.order = G.order.filter(id=>id!==p.id);
+    { const k = slotOf(p.id); if(k >= 0) G.order[k] = null; } trimSlots();
     for(let i=1;i<=G.innings;i++){ const a=G.assign[i]||{};
       POSK.forEach(c=>{ if(a[c]===p.id) delete a[c]; }); }
     save(); renderSettings();
@@ -3178,15 +3342,15 @@ function absoluteTrackerLink(src){
       const moved = ids[from], anchor = ids[to];
       if(!moved || !anchor) return;
       snap();
-      const atBatId = G.order[G.atBat];
-      G.order.splice(G.order.indexOf(moved), 1);
-      const at = G.order.indexOf(anchor);
+      const keepId = atBatId_();
+      G.order.splice(slotOf(moved), 1);
+      const at = slotOf(anchor);
       G.order.splice(from > to ? at : at + 1, 0, moved);
       // The marker follows the player, not the slot number he used to hold.
-      const back = G.order.indexOf(atBatId);
+      const back = G.order.indexOf(keepId);
       if(back >= 0) G.atBat = back;
       save(); render();
-      toast(`${last(P(moved)?.name || "He")} batting ${G.order.indexOf(moved) + 1}`);
+      toast(`${last(P(moved)?.name || "He")} batting ${slotOf(moved) + 1}`);
     },
     depth(from, to, c){
       snap();
