@@ -127,7 +127,7 @@
   .slot:active{transform:translate(-50%,-50%) scale(.96)}
   .slot .p{font-size:.5rem;letter-spacing:1px;color:var(--strike);font-weight:800;font-family:var(--mono)}
   .slot .n{font-size:.68rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78px}
-  .slot .num{font-family:var(--mono);color:var(--ink-dim);font-size:.6rem}
+  .slot .num{font-family:var(--mono);font-size:.52rem;color:var(--ink-faint);white-space:nowrap;letter-spacing:-.2px}
   .slot.empty{border-style:dashed;border-color:var(--ink-faint)}
   .slot.empty .n{color:var(--ink-faint)}
   .slot.pitcher{border-color:var(--strike-d);box-shadow:0 0 0 1px rgba(61,220,132,.3)}
@@ -302,7 +302,48 @@
   /* The bench chip carries a count of how many spots he's charted for, so you can
      see who has options before tapping. */
   .bchip .cnt{display:inline-block;margin-left:5px;padding:0 4px;border-radius:4px;
-    background:rgba(255,176,46,.18);color:var(--ball);font-size:.6rem;font-weight:800}
+    background:rgba(255,255,255,.07);color:var(--ink-dim);font-size:.6rem;font-weight:800}
+  /* Behind on innings — the players a mid-game sub should be reaching for. */
+  .bchip.owed{border-color:var(--ball);color:var(--ball)}
+  .bchip.owed .cnt{background:rgba(255,176,46,.2);color:var(--ball)}
+
+  /* ---------- LINEUP tab: the pre-game setup card ----------
+     This is the first thing on the tab because the question before a game is
+     "am I ready?", and it answers that before offering anything to edit. It
+     turns green when the answer is yes, so the state is readable from across
+     a dugout without parsing a sentence. */
+  .card.setup{border-color:var(--foul-d);background:linear-gradient(180deg,rgba(91,141,239,.10),transparent 70%)}
+  .card.setup.done{border-color:var(--strike-d);background:linear-gradient(180deg,rgba(61,220,132,.10),transparent 70%)}
+  .setup .srow{display:flex;align-items:flex-start;gap:10px;margin-bottom:11px}
+  .setup .stitle{font-family:var(--mono);font-size:.82rem;font-weight:800;letter-spacing:1.2px;color:var(--foul)}
+  .card.setup.done .stitle{color:var(--strike)}
+  .setup .ssub{font-size:.68rem;color:var(--ink-dim);line-height:1.45;margin-top:3px}
+  .setup .sready{flex:none;text-align:center;min-width:56px;padding:5px 8px;border-radius:10px;
+    background:var(--navy-850);border:1px solid var(--line)}
+  .setup .sready b{display:block;font-family:var(--mono);font-size:1.2rem;font-weight:800;color:var(--ink);line-height:1}
+  .setup .sready span{font-size:.46rem;letter-spacing:.8px;color:var(--ink-faint);font-weight:700}
+  .setup .sready.ok{border-color:var(--strike-d);background:#0e2a1d}
+  .setup .sready.ok b{color:var(--strike)}
+  .setup .row{gap:6px}
+  .setup .row .btn{font-size:.72rem}
+
+  /* The lineup-card row carries both jobs: where he hits (the number on the left,
+     drag to reorder) and where he fields (the pill on the right). Two lists for
+     one card was the app's filing system showing through. */
+  .ord .pospill{flex:none;width:46px;height:44px;border-radius:11px;display:flex;align-items:center;
+    justify-content:center;font-family:var(--mono);font-weight:800;font-size:.76rem;
+    background:var(--navy-800);border:1px solid var(--line);color:var(--ink-dim)}
+  .ord .pospill.r1{background:var(--strike-d);border-color:#2c8f57;color:#fff}
+  .ord .pospill.r2{background:var(--foul-d);border-color:#4a72c9;color:#fff}
+  .ord .pospill.on{background:var(--navy-700);border-color:var(--ink-faint);color:var(--ink)}
+  .ord .pospill.off{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
+  .ord .pospill.eh{background:rgba(255,176,46,.16);border-color:var(--ball-d);color:var(--ball)}
+  .ord .pospill.dh{background:rgba(255,176,46,.16);border-color:var(--ball-d);color:var(--ball)}
+  .ord .pospill.open{background:transparent;border-style:dashed;color:var(--ink-faint)}
+  .ord .innq{flex:none;text-align:right;min-width:26px;line-height:1.05}
+  .ord .innq b{display:block;font-family:var(--mono);font-size:.92rem;font-weight:800;color:var(--ink)}
+  .ord .innq span{font-size:.44rem;letter-spacing:.6px;color:var(--ink-faint);font-weight:700}
+  .ord .nm .sub{display:flex;gap:6px;align-items:center}
 
   /* ---------- strategy chips ---------- */
   .stratbar{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
@@ -311,45 +352,6 @@
     font-family:var(--mono);font-weight:800;font-size:.7rem;letter-spacing:.6px}
   .stratbar button span{display:block;font-size:.48rem;letter-spacing:.4px;opacity:.75;margin-top:2px;font-weight:700}
   .stratbar button.on{background:var(--foul-d);border-color:#8fb4ff;color:#fff}
-
-  /* ---------- LINEUP tab: by player ----------
-     Modelled on a fantasy-app lineup sheet, which solves this exact problem well:
-     a section head with a right-aligned metric label, then rows where the POSITION
-     is the leading element rather than an afterthought at the end. Reading down the
-     left edge gives you the lineup card; reading down the right gives you playing
-     time. The name sits between them and no longer has to carry both jobs. */
-  .lhead{display:flex;justify-content:space-between;align-items:baseline;
-    font-family:var(--mono);font-size:.58rem;font-weight:800;letter-spacing:1.2px;
-    color:var(--ink-faint);padding:12px 2px 7px;border-bottom:1px solid var(--line);margin-bottom:8px}
-  .lrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;min-height:62px;
-    background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);
-    padding:7px 10px 7px 7px;margin-bottom:7px}
-  .lrow:active{border-color:var(--foul)}
-  .lrow.empty{background:transparent;border-style:dashed}
-  /* The pill is the control AND the status: filled means he is in that spot, an
-     outline means he is not on the field. Same shape either way so the column
-     still scans as one thing. */
-  .pill{flex:none;width:52px;height:44px;border-radius:22px;display:flex;align-items:center;
-    justify-content:center;font-family:var(--mono);font-weight:800;font-size:.78rem;
-    background:var(--navy-800);border:1px solid var(--line);color:var(--ink-dim)}
-  .pill.r1{background:var(--strike-d);border-color:#2c8f57;color:#fff}
-  .pill.r2{background:var(--foul-d);border-color:#4a72c9;color:#fff}
-  .pill.on{background:var(--navy-700);border-color:var(--ink-faint);color:var(--ink)}
-  .pill.off{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
-  .pill.be{background:transparent;border-color:var(--ball-d);color:var(--ball)}
-  .pill.open{background:transparent;border-style:dashed;color:var(--ink-faint)}
-  .lrow .who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-  .lrow .who b{font-weight:600;font-size:.88rem;color:var(--ink);white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis}
-  .lrow .who .jn{font-family:var(--mono);font-size:.66rem;color:var(--ink-faint);margin-left:5px;font-weight:400}
-  .lrow .who .l1{font-family:var(--mono);font-size:.6rem;color:var(--foul);white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis}
-  .lrow .who .l2{font-family:var(--mono);font-size:.6rem;color:var(--ink-faint);white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis}
-  .lrow .score{flex:none;text-align:right;display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
-  .lrow .score b{font-family:var(--mono);font-size:1.05rem;font-weight:800;color:var(--ink)}
-  .lrow .score span{font-size:.5rem;letter-spacing:.8px;color:var(--ink-faint);font-weight:700}
-  .lrow.empty .score b{color:var(--ink-faint)}
 
   .slotgrid.pos9{grid-template-columns:repeat(3,1fr)}
   .slotgrid button.r1{border-color:var(--strike-d)}
@@ -569,48 +571,57 @@
 
   <!-- ============ LINEUP ============ -->
   <section id="tab-lineup" class="hide">
-    <div class="card">
-      <div class="seclab" style="margin:0 2px 7px">AUTO-FILL FOR</div>
+    <!-- The pre-game task, stated as one thing. Readiness first, because the
+         question before a game is "am I done?", not "what can I edit?". -->
+    <div class="card setup" id="setupCard">
+      <div class="srow">
+        <div class="grow">
+          <div class="stitle" id="setTitle">SET THE LINEUP</div>
+          <div class="ssub" id="setSub"></div>
+        </div>
+        <div class="sready" id="setReady"></div>
+      </div>
       <div class="stratbar" id="stratBar"></div>
-      <div class="faint" id="stratNote" style="font-size:.62rem;margin:7px 2px 11px;line-height:1.5"></div>
-      <div class="row" style="margin-bottom:10px">
-        <button class="btn pri wide" data-act="autofill">⚡ Auto-fill lineup</button>
+      <div class="faint" id="stratNote" style="font-size:.62rem;margin:7px 2px 10px;line-height:1.5"></div>
+      <div class="row">
+        <button class="btn pri wide" data-act="autofill">⚡ Auto-fill</button>
+        <button class="btn wide" data-act="autoorder">Reset order</button>
         <button class="btn wide" data-act="clearfill">Clear</button>
       </div>
-      <div class="tabs2" style="margin-bottom:10px">
-        <button class="t on" data-act="lview" data-v="grid">GRID</button>
-        <button class="t" data-act="lview" data-v="player">BY PLAYER</button>
-      </div>
-      <div id="gridWrap">
-        <div class="gridwrap"><table class="lg" id="grid"></table></div>
-        <div class="faint" style="font-size:.6rem;margin-top:9px;line-height:1.5">
-          Tap any cell to assign. <span style="color:var(--strike)">Green</span> = 1st choice there ·
-          <span style="color:var(--foul)">Blue</span> = further down the chart · <span style="color:var(--hit)">Red</span> = off it.
-          Amber dot = locked (auto-fill won't touch it). A left edge marks where you
-        entered a change — every inning after it carries the same player until you sub again.
-        </div>
-      </div>
-      <div id="byPlayer" hidden></div>
     </div>
 
+    <!-- One row per batting slot, carrying both jobs: where he hits and where he
+         fields. That is what a lineup card is; keeping them in two lists was the
+         app's filing system leaking into the coach's task. -->
     <div class="card">
       <div class="row" style="margin-bottom:9px">
-        <div class="seclab grow" style="margin:0">INNINGS BY POSITION</div>
-        <span class="faint" style="font-size:.58rem" id="trkNote"></span>
-      </div>
-      <div id="tracker"></div>
-    </div>
-
-    <div class="card">
-      <div class="row" style="margin-bottom:10px">
-        <div class="seclab grow" style="margin:0">BATTING ORDER</div>
-        <button class="btn" data-act="autoorder">Reset order</button>
+        <div class="seclab grow" style="margin:0">LINEUP CARD</div>
+        <span class="faint" style="font-size:.58rem" id="cardInn"></span>
       </div>
       <div class="sizebar" id="sizeBar"></div>
       <div id="orderList" style="margin-top:11px"></div>
       <div id="orderNote"></div>
       <div id="benchList"></div>
     </div>
+
+    <!-- Everything below is analysis: useful between innings, never in the way. -->
+    <details class="set" id="planBox">
+      <summary>FULL-GAME PLAN · ALL 7 INNINGS</summary>
+      <div class="body">
+        <div class="gridwrap"><table class="lg" id="grid"></table></div>
+        <div class="faint" style="font-size:.6rem;margin-top:9px;line-height:1.5">
+          Tap any cell to assign. <span style="color:var(--strike)">Green</span> = 1st choice there ·
+          <span style="color:var(--foul)">Blue</span> = further down the chart · <span style="color:var(--hit)">Red</span> = off it.
+          Amber dot = locked (auto-fill won't touch it). A left edge marks where you
+          entered a change — every inning after it carries the same player until you sub again.
+        </div>
+      </div>
+    </details>
+
+    <details class="set" id="trkBox">
+      <summary>INNINGS BY POSITION <span class="faint" id="trkNote"></span></summary>
+      <div class="body"><div id="tracker"></div></div>
+    </details>
 
     <div class="card">
       <div class="seclab">DESIGNATED HITTER · NFHS 3-1-4</div>
@@ -830,7 +841,7 @@ function ST(id){ return G.stats[id] || (G.stats[id] = freshStat()); }
 
 let APP = { roster:[], game:null, hist:[] };
 let G;                                  // shorthand for APP.game
-let UI = { tab:"field", dview:"player", lview:"grid", tview:"game", sheet:null };
+let UI = { tab:"field", dview:"player", tview:"game", sheet:null };
 const UNDO = [];
 
 /* ---------------------------------------------------------------------
@@ -1596,22 +1607,25 @@ function renderField(){
       style="left:${x}%;top:${y}%" data-act="cell" data-i="${G.cur}" data-c="${c}">
       <div class="p">${c}</div>
       <div class="n">${p ? esc(last(p.name)) : "—"}</div>
-      ${p&&p.num!==""?`<div class="num">#${esc(p.num)}</div>`:""}
+      ${p?`<div class="num">${p.num!==""?`#${esc(p.num)} `:""}<span style="opacity:.7">${timeFor(p.id).total}in</span></div>`:""}
     </button>`;
   }).join("");
 
   const b = benchFor(G.cur);
   $("bench").innerHTML = b.length
     ? `<span class="faint" style="font-size:.6rem;letter-spacing:1.5px;align-self:center">BENCH</span>` +
-      b.map(p=>{
-        const n = POSK.filter(c=>p.pos[c]>0).length;
-        return `<button class="bchip" data-act="benchpick" data-id="${p.id}">${esc(last(p.name))}${
-          n ? `<span class="cnt">${n}</span>` : ""}</button>`;
+      /* Sorted by who has played least, because that is the question a bench
+         answers mid-game. The number is his innings so far — the one fact that
+         decides the next sub, now readable without leaving the tab. */
+      b.slice().sort((x,y)=> timeFor(x.id).total - timeFor(y.id).total).map(p=>{
+        const t = timeFor(p.id).total, target = G.innings * 9 / Math.max(1, here().length);
+        return `<button class="bchip ${t < Math.floor(target) ? "owed" : ""}" data-act="benchpick" data-id="${p.id}">${
+          esc(last(p.name))}<span class="cnt">${t}</span></button>`;
       }).join("")
     : `<span class="faint" style="font-size:.64rem">Everyone's on the field this inning.</span>`;
   if(b.length) $("bench").insertAdjacentHTML("beforeend",
     `<span class="faint" style="font-size:.58rem;flex-basis:100%;line-height:1.5;margin-top:2px">
-       Tap a name to put him on the field — the number is how many spots he's charted for.</span>`);
+       Fewest innings first. The number is innings played — amber is owed time. Tap a name to bring him on.</span>`);
 
   renderBatter();
   renderPitch();
@@ -1714,27 +1728,38 @@ function renderLineup(){
   }).join("") + `</tr></tbody>`;
   $("grid").innerHTML = h;
 
-  // ---- strategy chips ----
-  document.querySelectorAll('[data-act="lview"]').forEach(b=>
-    b.classList.toggle("on", b.dataset.v === UI.lview));
+  // ---- setup header: am I ready to start? ----
   const S = strat();
   $("stratBar").innerHTML = STRATS.map(x=>
     `<button class="${x.k===S.k?"on":""}" data-act="strat" data-k="${x.k}">${x.label}<span>${x.sub}</span></button>`).join("");
   $("stratNote").textContent = S.note;
 
-  // ---- GRID / BY PLAYER ----
-  $("gridWrap").hidden = UI.lview !== "grid";
-  $("byPlayer").hidden = UI.lview === "grid";
-  if(UI.lview === "player") renderByPlayer();
+  const a1 = A(G.cur);
+  const posFilled = POSK.filter(c=>a1[c]).length;
+  const batting = G.order.length;
+  const ready = posFilled === 9 && batting >= 9;
+  $("setupCard").classList.toggle("done", ready);
+  $("setTitle").textContent = ready ? "LINEUP IS SET" : "SET THE LINEUP";
+  /* Name what's missing, not that something is. "9 batting, no positions yet" is
+     a next action; "incomplete" is a scolding. */
+  const gaps = [];
+  if(batting < 9) gaps.push(`${9-batting} more batter${9-batting===1?"":"s"} needed`);
+  if(posFilled === 0) gaps.push("no positions set yet");
+  else if(posFilled < 9) gaps.push(`open: ${POSK.filter(c=>!a1[c]).join(", ")}`);
+  $("setSub").textContent = ready
+    ? `${batting} batting · all nine positions · carries every inning until you sub`
+    : gaps.join(" · ");
+  $("setReady").innerHTML = `<b>${posFilled}</b><span>/9 POS</span>`;
+  $("setReady").className = "sready" + (posFilled===9 ? " ok" : "");
+  $("cardInn").textContent = G.log.length || G.cur > 1
+    ? `EDITING INNING ${G.cur}` : "INNING 1 · CARRIES ALL GAME";
 
   renderTracker();
 
-  /* "How many bat" was a number you set, which the order then had to be dragged
-     into agreement with — two controls for one idea, and a standing way for them
-     to disagree ("order holds 12 of 17"). The lineup size is simply how many
-     players are in the order, so these are shortcuts that move the order itself,
-     not a separate setting. Sizes at or above the squad are dropped: offering
-     "12" to a team of ten offers a lineup that can't be filled. */
+  /* Lineup size: shortcuts that move the order itself, not a separate setting
+     the order then has to be argued into agreement with. Sizes at or above the
+     squad are dropped — offering "12" to a team of ten offers a lineup that
+     can't be filled. */
   const present = here().length;
   const n = G.order.length;
   $("sizeBar").innerHTML = [9,10,11,12].filter(v => v < present).map(v=>
@@ -1746,9 +1771,18 @@ function renderLineup(){
   $("orderList").dataset.sortable = "order";
   $("orderList").innerHTML = n ? G.order.map((id,k)=>{
     const p = P(id); if(!p) return "";
-    const st = ST(id), r = roleIn(G.cur, id);
-    const rc = r===EH_LABEL ? "eh" : r==="DH" ? "dh" : "";
-    return `<div class="ord ${k===G.atBat%n?"atbat":""}" data-sortrow data-act="batfrom" data-id="${id}" data-k="${k}">
+    const t = timeFor(id), r = roleIn(G.cur, id);
+    // His defensive spot this inning — the other half of the lineup card.
+    const c = POSK.find(x=>a1[x]===id) || null;
+    /* "Extra hitter" only means something once the nine are filled. Before that
+       an unplaced batter is unplaced, not an EH — calling him one would report a
+       decision the coach hasn't made yet. */
+    const placed = posFilled === 9;
+    const role = c ? null : (r==="DH" ? "DH" : (placed && r===EH_LABEL) ? EH_LABEL : null);
+    const pcls = c ? (rankCls(c, p) || "on") : role ? (role==="DH" ? "dh" : "eh") : "open";
+    const badge = c || role || "—";
+    const chart = POSK.filter(x=>p.pos[x]>0).sort((x,y)=>p.pos[x]-p.pos[y]);
+    return `<div class="ord ${k===G.atBat%n?"atbat":""}" data-sortrow data-id="${id}">
       <button class="grip" data-act="nop" aria-label="Reorder ${esc(label(p))}">
         <svg width="13" height="20" viewBox="0 0 13 20" fill="currentColor" aria-hidden="true">
           <circle cx="3" cy="4" r="1.6"/><circle cx="10" cy="4" r="1.6"/>
@@ -1756,10 +1790,13 @@ function renderLineup(){
           <circle cx="3" cy="16" r="1.6"/><circle cx="10" cy="16" r="1.6"/>
         </svg></button>
       <button class="slotno" data-act="movepick" data-id="${id}"
-        aria-label="Move ${esc(label(p))} to another slot">${k+1}</button>
-      <span class="nm"><b>${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</b>
-        <span class="sub"><span class="role ${rc}">${r}</span><span class="faint tnum">${st.h}/${st.ab}</span></span></span>
-      <button class="drop" data-act="ordout" data-id="${id}" aria-label="Take ${esc(label(p))} out of the order">−</button>
+        aria-label="Move ${esc(label(p))} in the order">${k+1}</button>
+      <span class="nm"><b>${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</b>
+        <span class="sub">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span>`:""}
+          <span class="faint tnum">${chart.length ? esc(chart.slice(0,2).map(x=>`${ord(p.pos[x])} ${x}`).join(" · ")) : "no chart"}</span></span></span>
+      <button class="pospill ${pcls}" data-act="bppick" data-id="${id}"
+        aria-label="Set ${esc(label(p))}'s position">${badge}</button>
+      <span class="innq"><b>${t.total}</b><span>INN</span></span>
     </div>`;
   }).join("") : `<div class="faint" style="font-size:.8rem">Nobody's batting yet — add players below, or mark them present on the Depth tab.</div>`;
 
@@ -1775,9 +1812,11 @@ function renderLineup(){
       </div>`).join("") : "";
 
   const notes = [];
+  const unassigned = G.order.filter(id=>!POSK.some(c=>a1[c]===id) && roleIn(G.cur,id)==="—").length;
+  if(unassigned) notes.push(`<span style="color:var(--ball)">${unassigned} batter${unassigned===1?"":"s"} with no position — tap the — to place them, or extra hitters if that's intended.</span>`);
   if(n > 9) notes.push(`Badges show this inning's role. ${n-9} ${EH_LABEL} bat${n-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
   if(dh && dh.mode==="ten") notes.push(`${esc(last(P(dh.forId)?.name||""))} fields but doesn't bat — the DH holds his slot.`);
-  notes.push(`Drag the handle to reorder · <b>−</b> takes a player out · tap a row to bat from there · ↺ undoes any of it.`);
+  notes.push(`Drag the handle to reorder the batting order · tap the <b>number</b> to move or remove him · tap the <b>position</b> to set where he fields · ↺ undoes any of it.`);
   $("orderNote").innerHTML = `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>`;
 
   renderDH();
@@ -1932,60 +1971,6 @@ function renderAvail(){
    already taken this inning simply isn't in the list, so a double-assignment
    can't be expressed. Same approach as the catcher–pitcher rule — constrain the
    pool, don't validate the result. */
-function renderByPlayer(){
-  const inn = G.cur, a = A(inn);
-  const spot = {};                                  // playerId → position this inning
-  for(const c of POSK) if(a[c]) spot[a[c]] = c;
-
-  /* Where a player is charted, shortest useful form: "1st SS · 2nd 2B". This is
-     the line that tells you whether a substitution is sensible before you make
-     it, which is the whole reason to read a bench row. */
-  const chartLine = p => {
-    const at = POSK.filter(c=>p.pos[c] > 0).sort((x,y)=>p.pos[x] - p.pos[y]);
-    return at.length ? at.slice(0,3).map(c=>`${ord(p.pos[c])} ${c}`).join(" · ")
-                       + (at.length > 3 ? ` +${at.length-3}` : "")
-                     : "Not on a depth chart";
-  };
-
-  const row = (p, c, cls, act) => {
-    const t = timeFor(p.id);
-    return `<button class="lrow" data-act="${act}" data-id="${p.id}">
-      <span class="pill ${cls}">${c}</span>
-      <span class="who"><b>${esc(firstN(p.name).charAt(0)+". "+last(p.name))}${
-        p.num!==""?`<span class="jn">#${esc(p.num)}</span>`:""}</b>
-        <span class="l1">${esc(chartLine(p))}</span>
-        <span class="l2">${c!=="BE" ? `${t.byPos[c]||0} inn at ${c} today` : `on the bench this inning`}</span></span>
-      <span class="score"><b>${t.total}</b><span>INN</span></span>
-    </button>`;
-  };
-
-  // Field rows run in scorebook order — P, C, then around the horn — so the list
-  // reads the way a lineup card does rather than by whoever happens to be listed.
-  const field = POSK.map(c=>{
-    const p = P(a[c]);
-    if(!p) return `<button class="lrow empty" data-act="cell" data-i="${inn}" data-c="${c}">
-        <span class="pill open">${c}</span>
-        <span class="who"><b>Nobody here</b><span class="l1">Tap to fill this spot</span></span>
-        <span class="score"><b>—</b><span>INN</span></span>
-      </button>`;
-    return row(p, c, rankCls(c, p) || "on", "bppick");
-  }).join("");
-
-  const bench = fielders().filter(p=>!spot[p.id])
-    .sort((x,y)=> timeFor(x.id).total - timeFor(y.id).total);
-
-  const filled = POSK.filter(c=>a[c]).length;
-  $("byPlayer").innerHTML = `
-    <div class="lhead"><span>ON THE FIELD · INNING ${inn}</span><span>${filled}/9</span></div>
-    ${field}
-    <div class="lhead"><span>BENCH${bench.length?` · ${bench.length}`:""}</span><span>INN</span></div>
-    ${bench.length ? bench.map(p=>row(p, "BE", "be", "benchpick")).join("")
-      : `<div class="faint" style="font-size:.72rem;padding:6px 2px">Everyone's on the field this inning.</div>`}
-    <div class="faint" style="font-size:.62rem;margin-top:10px;line-height:1.5">
-      Tap a fielder to move him, a bench name to bring him on, or an empty spot to fill it.
-      The pill is his depth at that position — <span style="color:var(--strike)">green is 1st choice</span>.</div>`;
-}
-
 /* Which positions can this player take THIS inning: whatever is free, plus the
    one he already holds (so the sheet can say "leave him there"). */
 function openByPlayerPick(id){
@@ -2358,7 +2343,11 @@ function openMovePick(id){
         <span>${k===from ? "NOW" : esc((last(occupant?.name||"")||"—").slice(0,6).toUpperCase())}</span>
       </button>`;
     }).join("") + `</div>
-    <div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
+    <div class="row" style="margin-top:11px">
+      <button class="btn wide" data-act="batnext" data-id="${id}">Bat him next</button>
+      <button class="btn wide" data-act="ordout" data-id="${id}">Take out of order</button>
+    </div>
+    <div class="faint" style="font-size:.62rem;margin-top:10px;line-height:1.5">
       The name under each number is who bats there after the move. Dragging the
       handle does the same thing for a slot or two.</div>`;
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
@@ -2517,6 +2506,7 @@ const ACT = {
      so it takes an undo rather than a confirmation dialog — a prompt on every
      lineup tweak would be the bigger annoyance, and ↺ is already in the header. */
   ordout(el){
+    closeSheet();
     const id = el.dataset.id, p = P(id);
     const k = G.order.indexOf(id); if(k < 0) return;
     snap();
@@ -2538,7 +2528,6 @@ const ACT = {
   /* The row is the biggest target on the screen, so it gets the action a coach
      actually repeats mid-game: put the order back in sync with the field. */
   nop(){},
-  lview(el){ UI.lview = el.dataset.v; save(); renderLineup(); },
   strat(el){ G.strategy = el.dataset.k; save(); renderLineup();
     toast(strat().label + " — tap Auto-fill to apply"); },
   bppick(el){ openByPlayerPick(el.dataset.id); },
@@ -2586,6 +2575,13 @@ const ACT = {
     if(back >= 0) G.atBat = back;
     save(); render();
     toast(`${last(P(id)?.name||"He")} batting ${to+1}`);
+  },
+  batnext(el){
+    closeSheet();
+    const k = G.order.indexOf(el.dataset.id);
+    if(k < 0 || k === G.atBat) return;
+    snap(); G.atBat = k; save(); render();
+    toast(`${last(P(G.order[k])?.name||"He")} up next`);
   },
   batfrom(el){
     const k = +el.dataset.k;
