@@ -230,8 +230,8 @@
 
   /* While a row is being dragged it follows the finger; the rest shuffle to show
      where it would land, so the result is visible before you let go. */
-  .ord.dragging{opacity:.92;z-index:30;box-shadow:0 10px 24px rgba(0,0,0,.5);border-color:var(--foul)}
-  .ord.shift{transition:transform .16s ease}
+  [data-sortrow].dragging{opacity:.92;z-index:30;box-shadow:0 10px 24px rgba(0,0,0,.5);border-color:var(--foul)}
+  [data-sortrow].shift{transition:transform .16s ease}
 
   /* The bench: present players not in the order. One tap puts them in. */
   .benchrow{display:flex;align-items:center;gap:8px;background:transparent;border:1px dashed var(--line);
@@ -284,12 +284,20 @@
   .toggle.out{background:var(--hit-d);border-color:#b83340;color:#ffd2d6}
 
   /* by-position depth view */
-  .dpos{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px;margin-bottom:7px}
-  .dpos .h{font-family:var(--mono);font-size:.7rem;font-weight:800;color:var(--strike);letter-spacing:1px;margin-bottom:6px}
-  .dlist{display:flex;flex-wrap:wrap;gap:5px}
-  .dl{font-size:.72rem;padding:4px 9px;border-radius:6px;background:var(--navy-800);border:1px solid var(--line)}
-  .dl.r1{border-left:3px solid var(--strike)}
-  .dl.r2{border-left:3px solid var(--foul)}
+  .dpos{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px;margin-bottom:9px}
+  .dpos .h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-family:var(--mono);
+    font-size:.7rem;font-weight:800;color:var(--strike);letter-spacing:1px;margin-bottom:8px}
+  .dpos .h .deep{color:var(--ink-faint);font-size:.56rem;letter-spacing:.8px}
+  /* Depth rows sit on the card, so they invert: darker than their container where
+     a batting-order row is lighter than the page. Everything else is the same row. */
+  .ord.dchart{background:var(--navy-800)}
+  .ord.dchart .slotno{color:var(--strike)}
+  .addpos{width:100%;height:44px;border-radius:9px;background:transparent;border:1px dashed var(--line);
+    color:var(--ink-dim);font-weight:800;font-size:.72rem;letter-spacing:.8px;margin-top:2px}
+  .addpos:active{background:var(--navy-800);border-color:var(--foul);color:var(--foul)}
+  /* The depth number rides on the chip so BY PLAYER says where he sits, not just
+     that he's listed. */
+  .pc .rk{display:block;font-size:.5rem;line-height:1;margin-top:2px;opacity:.8}
 
   /* ---------- TIME tab ---------- */
   .trow{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:10px;margin-bottom:8px}
@@ -674,7 +682,11 @@ function uid(){ return Math.random().toString(36).slice(2,9); }
 /* A player carries their depth-chart ranks with them:
    pos[code] = 1 (primary) · 2 (can play) · 0 (don't put them here). */
 function freshPlayer(p){
-  const pos={}; POSK.forEach(c=> pos[c] = 2);   // start everyone as "can play"
+  // Nobody starts on a depth chart. Seventeen players auto-listed under all nine
+  // positions would leave the BY POSITION editor with nothing to add and lists
+  // too long to read, and the solver already copes with an empty chart by
+  // relaxing to whoever is available.
+  const pos={}; POSK.forEach(c=> pos[c] = 0);
   return {id:uid(), num:p.num??"", name:p.name||"", pos, present:true};
 }
 
@@ -807,6 +819,35 @@ function syncFromTracker(){
   return fresh;
 }
 
+/* Depth ranks used to be tiers: 1 meant "primary", 2 meant "can play", and any
+   number of players could share a tier — so "who is my second shortstop" had no
+   answer and the solver settled ties alphabetically. They are ordinals now: 0 is
+   off the chart, 1..N is the order you would actually go to them.
+
+   Existing saves carry tiers, so renumber on load in exactly the order the old
+   BY POSITION list already displayed (tier, then surname). Nobody's chart changes
+   meaning; it only becomes explicit. Running it again on already-ordinal data is
+   a no-op, which is what makes it safe to call on every boot. */
+function normalizeDepth(){
+  let changed = false;
+  for(const c of POSK){
+    const on = APP.roster.filter(p=>p.pos[c] > 0)
+      .sort((a,b)=> a.pos[c]-b.pos[c] || last(a.name).localeCompare(last(b.name)));
+    on.forEach((p,i)=>{ if(p.pos[c] !== i+1){ p.pos[c] = i+1; changed = true; } });
+  }
+  return changed;
+}
+
+/* Ranks have to stay contiguous after any add, drop or reorder — a chart reading
+   1, 2, 4 would render a rank nobody holds. Every mutation routes through here. */
+function reseat(c, ids){
+  APP.roster.forEach(p=>{ if(!ids.includes(p.id)) { if(p.pos[c]) p.pos[c] = 0; } });
+  ids.forEach((id,i)=>{ const p = P(id); if(p) p.pos[c] = i+1; });
+}
+function depthAt(c){
+  return APP.roster.filter(p=>p.pos[c] > 0).sort((a,b)=> a.pos[c] - b.pos[c]);
+}
+
 /* The badge fits about two words, and what identifies a team is the TAIL —
    "14U" against "Orange 17U". Clipping the end with CSS would render every
    team as "NOVA Premier…", so drop words out of the middle instead and keep
@@ -871,6 +912,7 @@ function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show");
   clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1500); }
 function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function P(id){ return APP.roster.find(p=>p.id===id) || null; }
+function ord(n){ const t=n%100, s=["th","st","nd","rd"][(t>10&&t<14)?0:(n%10<4?n%10:0)]; return n+s; }
 function last(n){ return String(n||"").split(",")[0].trim() || String(n||""); }
 function firstN(n){ const b=String(n||"").split(","); return (b[1]||b[0]||"").trim(); }
 function label(p){ return p ? (last(p.name) + (firstN(p.name)&&last(p.name)!==firstN(p.name) ? ", "+firstN(p.name).charAt(0) : "")) : ""; }
@@ -1397,7 +1439,9 @@ function renderLineup(){
     h += `<tr><td class="poslab">${c}</td>` + inns.map(i=>{
       const p = P((G.assign[i]||{})[c]);
       const rank = p ? p.pos[c] : null;
-      const cls = !p ? "blank" : rank===1 ? "r1" : rank===2 ? "r2" : "off";
+      // Green = your first choice there, blue = further down the chart, red = off
+      // it entirely. The exact depth number lives in the cell's title.
+      const cls = !p ? "blank" : rank===1 ? "r1" : rank>1 ? "r2" : "off";
       const lock = (G.locks[i]||{})[c] ? "locked" : "";
       const cur  = i===G.cur ? "cur" : "";
       const txt  = p ? (p.num!=="" ? p.num : last(p.name).slice(0,3)) : "·";
@@ -1436,11 +1480,12 @@ function renderLineup(){
     + `<button class="${n>=present?"on":""}" data-act="size" data-n="${present}">${present}<span>ALL</span></button>`;
 
   const dh = dhLive();
+  $("orderList").dataset.sortable = "order";
   $("orderList").innerHTML = n ? G.order.map((id,k)=>{
     const p = P(id); if(!p) return "";
     const st = ST(id), r = roleIn(G.cur, id);
     const rc = r===EH_LABEL ? "eh" : r==="DH" ? "dh" : "";
-    return `<div class="ord ${k===G.atBat%n?"atbat":""}" data-act="batfrom" data-id="${id}" data-k="${k}">
+    return `<div class="ord ${k===G.atBat%n?"atbat":""}" data-sortrow data-act="batfrom" data-id="${id}" data-k="${k}">
       <button class="grip" data-act="nop" aria-label="Reorder ${esc(label(p))}">
         <svg width="13" height="20" viewBox="0 0 13 20" fill="currentColor" aria-hidden="true">
           <circle cx="3" cy="4" r="1.6"/><circle cx="10" cy="4" r="1.6"/>
@@ -1629,25 +1674,46 @@ function renderDepth(){
             ${p.present?"HERE":"OUT"}</button>
         </div>
         <div class="poschips">${POSK.map(c=>
-          `<button class="pc ${p.pos[c]===1?"r1":p.pos[c]===2?"r2":""}"
-            data-act="rank" data-id="${p.id}" data-c="${c}">${c}</button>`).join("")}</div>
+          `<button class="pc ${p.pos[c]===1?"r1":p.pos[c]>1?"r2":""}"
+            data-act="rank" data-id="${p.id}" data-c="${c}">${c}${
+            p.pos[c] ? `<span class="rk">${p.pos[c]}</span>` : ""}</button>`).join("")}</div>
       </div>`).join("") +
       `<div class="faint" style="font-size:.64rem;line-height:1.55;padding:2px 4px">
-        Tap a position to cycle it: <span style="color:var(--foul)">can play</span> →
-        <span style="color:var(--strike)">primary</span> → off. Auto-fill sends players to their
-        primary spots first, then fills the gaps by who's owed innings.</div>`;
+        Tap a position to put this player on its chart; the small number is how deep he
+        sits there. <span style="color:var(--strike)">Green is 1st choice</span>. Tap again to
+        take him off. To change the order at a position, use BY POSITION.</div>`;
   }else{
+    /* Nine ordered lists, one per position — the same row, handle and remove
+       controls as the batting order, because it is the same job: arrange people
+       in a sequence. Reusing the pattern means one thing to learn, and the drag
+       controller is literally the same code. */
     $("depthBody").innerHTML = POS.map(([c,full])=>{
-      const pool = APP.roster.filter(p=>p.pos[c]>0)
-        .sort((a,b)=> a.pos[c]-b.pos[c] || last(a.name).localeCompare(last(b.name)));
+      const pool = depthAt(c);
       return `<div class="dpos">
-        <div class="h">${c} · ${full.toUpperCase()}</div>
-        <div class="dlist">${pool.length ? pool.map((p,k)=>
-          `<span class="dl r${p.pos[c]}" style="${p.present?"":"opacity:.42"}">
-            <span class="faint tnum">${k+1}</span> ${esc(last(p.name))}${p.present?"":" ·out"}</span>`).join("")
-          : `<span class="faint" style="font-size:.72rem">Nobody assigned — auto-fill will grab whoever's free.</span>`}</div>
+        <div class="h"><span>${c} · ${full.toUpperCase()}</span>
+          <span class="deep">${pool.length ? pool.length+" DEEP" : "EMPTY"}</span></div>
+        <div data-sortable="depth" data-sortkey="${c}">${pool.map((p,k)=>`
+          <div class="ord dchart" data-sortrow>
+            <button class="grip" data-act="nop" aria-label="Reorder ${esc(label(p))} at ${c}">
+              <svg width="13" height="20" viewBox="0 0 13 20" fill="currentColor" aria-hidden="true">
+                <circle cx="3" cy="4" r="1.6"/><circle cx="10" cy="4" r="1.6"/>
+                <circle cx="3" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/>
+                <circle cx="3" cy="16" r="1.6"/><circle cx="10" cy="16" r="1.6"/>
+              </svg></button>
+            <span class="slotno">${k+1}</span>
+            <span class="nm"><b>${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${
+              esc(firstN(p.name).charAt(0)+". "+last(p.name))}</b>
+              <span class="sub"><span class="faint tnum">${timeFor(p.id).byPos[c]||0} inn here${
+                p.present?"":" · OUT TODAY"}</span></span></span>
+            <button class="drop" data-act="depthout" data-id="${p.id}" data-c="${c}"
+              aria-label="Take ${esc(label(p))} off ${c}">−</button>
+          </div>`).join("")}</div>
+        <button class="addpos" data-act="depthadd" data-c="${c}">+ ADD PLAYER</button>
       </div>`;
-    }).join("");
+    }).join("") +
+      `<div class="faint" style="font-size:.64rem;line-height:1.55;padding:2px 4px">
+        Order is who you'd go to first. Auto-fill reads it top down, so 1st gets the
+        spot unless the strategy or a pitching rule says otherwise.</div>`;
   }
 }
 
@@ -1759,8 +1825,8 @@ function openCell(inn, c){
     const isHere = a[c]===p.id;
     const bad = isHere ? null : blockedBy(inn, c, p.id);
     const sub = bad ? "Blocked by the catcher–pitcher rule"
-      : p.pos[c]===1 ? "Primary here" : p.pos[c]===2 ? "Can play here" : "Not on depth chart";
-    return `<button class="pick r${p.pos[c]} ${bad?"blocked":""}" ${bad?"":`data-act="assign"`} data-id="${p.id}"
+      : p.pos[c]===1 ? "1st choice here" : p.pos[c]>1 ? `${ord(p.pos[c])} choice here` : "Not on depth chart";
+    return `<button class="pick r${p.pos[c]===1?1:p.pos[c]>1?2:0} ${bad?"blocked":""}" ${bad?"":`data-act="assign"`} data-id="${p.id}"
         style="${isHere?"box-shadow:0 0 0 2px var(--strike)":""}">
       <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${p.num!==""?esc(p.num):"—"}</span>
       <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}
@@ -1779,8 +1845,33 @@ function openCell(inn, c){
 
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
-function closeSheet(){ UI.sheet=null; UI.dhPick=null; UI.movePick=null;
+function closeSheet(){ UI.sheet=null; UI.dhPick=null; UI.movePick=null; UI.depthPick=null;
   $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
+
+/* Adding to a position chart. Only players not already on it, ordered by who has
+   the fewest innings there, so the sheet leads with the kid you are most likely
+   trying to develop rather than making you hunt. */
+function openDepthPick(c){
+  UI.depthPick = c;
+  const full = POS.find(x=>x[0]===c)[1];
+  const on = new Set(depthAt(c).map(p=>p.id));
+  const pool = APP.roster.filter(p=>!on.has(p.id))
+    .sort((a,b)=> (timeFor(a.id).byPos[c]||0) - (timeFor(b.id).byPos[c]||0)
+                || timeFor(a.id).total - timeFor(b.id).total);
+  $("sheetTitle").textContent = `ADD TO ${full.toUpperCase()}`;
+  $("sheetBody").innerHTML = pool.length ? pool.map(p=>{
+    const t = timeFor(p.id);
+    return `<button class="pick" data-act="depthpick" data-id="${p.id}">
+      <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${p.num!==""?esc(p.num):"—"}</span>
+      <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}
+        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+          p.present ? `${t.total} inn today` : "Not here today"}</span></span>
+      <span class="meta">${t.byPos[c]||0}<br>inn ${c}</span>
+    </button>`;
+  }).join("") : `<div class="faint" style="font-size:.78rem;padding:4px">
+      Everyone on the roster is already on this chart.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
 
 /* Move a batter to any slot in two taps. The grid shows every position with the
    player currently there, so the choice is made against the real order rather
@@ -2055,11 +2146,33 @@ const ACT = {
   tview(el){ UI.tview = el.dataset.v; renderTime(); },
 
   /* ---- depth chart ---- */
+  /* On the chart or off it. Depth ORDER is set by dragging in BY POSITION, so
+     this side only has to answer the yes/no question and append to the bottom. */
   rank(el){
     const p = P(el.dataset.id), c = el.dataset.c;
     snap();
-    p.pos[c] = p.pos[c]===2 ? 1 : p.pos[c]===1 ? 0 : 2;   // can play → primary → off
+    const ids = depthAt(c).map(x=>x.id);
+    const at = ids.indexOf(p.id);
+    if(at >= 0) ids.splice(at, 1); else ids.push(p.id);
+    reseat(c, ids);
     save(); renderDepth();
+  },
+  depthout(el){
+    const c = el.dataset.c, id = el.dataset.id;
+    snap();
+    reseat(c, depthAt(c).map(x=>x.id).filter(x=>x!==id));
+    save(); renderDepth();
+    toast(`${last(P(id)?.name||"He")} off the ${c} chart — ↺ to undo`);
+  },
+  depthadd(el){ openDepthPick(el.dataset.c); },
+  depthpick(el){
+    const c = UI.depthPick, id = el.dataset.id;
+    closeSheet();
+    if(!c) return;
+    snap();
+    reseat(c, depthAt(c).map(x=>x.id).concat(id));
+    save(); renderDepth();
+    toast(`${last(P(id)?.name||"He")} is ${ord(depthAt(c).length)} at ${c}`);
   },
   present(el){
     const p = P(el.dataset.id);
@@ -2246,16 +2359,18 @@ function absoluteTrackerLink(src){
 
   document.addEventListener("pointerdown", e=>{
     const grip = e.target.closest(".grip");
-    const list = $("orderList");
-    if(!grip || !list || !list.contains(grip)) return;
-    const row = grip.closest(".ord"); if(!row) return;
+    if(!grip) return;
+    const list = grip.closest("[data-sortable]");
+    if(!list) return;
+    const row = grip.closest("[data-sortrow]"); if(!row) return;
     e.preventDefault();
-    const rows = [...list.querySelectorAll(".ord")];
+    const rows = [...list.querySelectorAll("[data-sortrow]")];
     const from = rows.indexOf(row);
     const step = rows.length > 1
       ? rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top
       : row.getBoundingClientRect().height;
-    st = { row, rows, from, to:from, step, y0:e.clientY, lastY:e.clientY, scroll:0, raf:0 };
+    st = { row, rows, from, to:from, step, y0:e.clientY, lastY:e.clientY, scroll:0, raf:0,
+           kind: list.dataset.sortable, key: list.dataset.sortkey || "" };
     try{ grip.setPointerCapture(e.pointerId); }catch(_){}
     row.classList.add("dragging");
     rows.forEach(r=>{ if(r !== row) r.classList.add("shift"); });
@@ -2313,22 +2428,42 @@ function absoluteTrackerLink(src){
     autoScroll(e.clientY);
   }, {passive:false});
 
+  /* What a finished drag MEANS depends on the list. The gesture, the auto-scroll
+     and the shuffle are identical either way, so they stay here and only the
+     commit is per-list. Adding a third sortable list is a new entry, not a second
+     copy of the drag code. */
+  const COMMIT = {
+    order(from, to){
+      snap();
+      const atBatId = G.order[G.atBat];
+      const [id] = G.order.splice(from, 1);
+      G.order.splice(to, 0, id);
+      // The marker follows the player, not the slot number he used to hold.
+      const back = G.order.indexOf(atBatId);
+      if(back >= 0) G.atBat = back;
+      save(); render();
+      toast(`${last(P(id)?.name || "He")} batting ${to + 1}`);
+    },
+    depth(from, to, c){
+      snap();
+      const ids = depthAt(c).map(p=>p.id);
+      const [id] = ids.splice(from, 1);
+      ids.splice(to, 0, id);
+      reseat(c, ids);
+      save(); render();
+      toast(`${last(P(id)?.name || "He")} is ${ord(to + 1)} at ${c}`);
+    }
+  };
+
   function end(){
     if(!st) return;
-    const { row, rows, from, to, raf } = st;
+    const { row, rows, from, to, raf, kind, key } = st;
     if(raf) cancelAnimationFrame(raf);
     st = null;
     row.classList.remove("dragging"); row.style.transform = "";
     rows.forEach(r=>{ r.classList.remove("shift"); r.style.transform = ""; });
     if(to === from) return;
-    snap();
-    const atBatId = G.order[G.atBat];
-    const [id] = G.order.splice(from, 1);
-    G.order.splice(to, 0, id);
-    const back = G.order.indexOf(atBatId);
-    if(back >= 0) G.atBat = back;
-    save(); render();
-    toast(`${last(P(id)?.name || "He")} batting ${to + 1}`);
+    (COMMIT[kind] || (()=>{}))(from, to, key);
   }
   document.addEventListener("pointerup", end);
   document.addEventListener("pointercancel", end);
@@ -2405,6 +2540,7 @@ document.addEventListener("input", e=>{
   G = APP.game;
   if(!G.order.length) G.order = here().map(p=>p.id).slice(0, G.size);
   joined = syncFromTracker();
+  if(normalizeDepth()) save();
   render();
   // Say it out loud. A player quietly appearing in a list is a player the
   // coach doesn't know he has.
