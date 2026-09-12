@@ -585,6 +585,10 @@
       <div class="faint" id="stratNote" style="font-size:.62rem;margin:7px 2px 10px;line-height:1.5"></div>
       <div class="row">
         <button class="btn pri wide" data-act="autofill">⚡ Auto-fill</button>
+        <button class="btn wide" data-act="loadlineup" id="loadBtn">📋 Load</button>
+        <button class="btn wide" data-act="savelineup">Save</button>
+      </div>
+      <div class="row" style="margin-top:6px">
         <button class="btn wide" data-act="autoorder">Reset order</button>
         <button class="btn wide" data-act="clearfill">Clear</button>
       </div>
@@ -840,7 +844,7 @@ function freshGame(roster, prev){
 function freshStat(){ return {ab:0,h:0,bb:0,k:0,pa:0,pitches:0,byInn:{},rating:0,note:""}; }
 function ST(id){ return G.stats[id] || (G.stats[id] = freshStat()); }
 
-let APP = { roster:[], game:null, hist:[] };
+let APP = { roster:[], game:null, hist:[], saved:[] };
 let G;                                  // shorthand for APP.game
 let UI = { tab:"field", dview:"player", tview:"game", cardAll:true, sheet:null };
 const UNDO = [];
@@ -1007,6 +1011,7 @@ function load(){
     if(!d || !d.roster) return false;
     APP = d;
     APP.hist = APP.hist || [];
+    APP.saved = APP.saved || [];          // saved lineups arrived after some saves
     APP.game = normalize(APP.game);
     return true;
   }catch(e){ return false; }
@@ -1047,6 +1052,68 @@ function last(n){ return String(n||"").split(",")[0].trim() || String(n||""); }
 function firstN(n){ const b=String(n||"").split(","); return (b[1]||b[0]||"").trim(); }
 function label(p){ return p ? (last(p.name) + (firstN(p.name)&&last(p.name)!==firstN(p.name) ? ", "+firstN(p.name).charAt(0) : "")) : ""; }
 function here(){ return APP.roster.filter(p=>p.present); }
+/* ---------------------------------------------------------------------
+   Saved lineups
+
+   A lineup is the batting order plus the defensive change points — the two
+   things that took work to enter. Everything else about a game (pitch counts,
+   at-bats, notes) is history and deliberately NOT carried.
+
+   Player ids are the load-bearing part: a saved lineup points at players, and
+   a roster changes between games. So loading validates rather than trusting —
+   anyone who has left the roster or isn't here today is dropped and named,
+   because a lineup that silently fields a kid who went home is worse than no
+   lineup at all.
+   --------------------------------------------------------------------- */
+function lineupSnapshot(g){
+  const src = g || G;
+  return {
+    order: (src.order || []).slice(),
+    size: src.size,
+    assign: JSON.parse(JSON.stringify(src.assign || {})),
+    strategy: src.strategy || null
+  };
+}
+function applyLineup(src){
+  const live = new Set(here().map(p=>p.id));
+  const dropped = [];
+  const keep = id => {
+    if(live.has(id)) return true;
+    const p = P(id);
+    dropped.push(p ? last(p.name) : "a player no longer on the roster");
+    return false;
+  };
+  snap();                                       // undoable like anything else
+  G.order = (src.order || []).filter(keep);
+  G.size = Math.max(9, G.order.length);
+  /* Rebuild the change points, dropping anyone who can't play today. The layer
+     is kept with an explicit null rather than deleted, so the inning stays a
+     change point — delete it and the dropped starter would be re-inherited from
+     the inning before. */
+  const out = {};
+  for(const k in src.assign || {}){
+    const layer = src.assign[k], next = {};
+    for(const c of POSK){
+      if(!(c in layer)) continue;
+      const id = layer[c];
+      next[c] = (id && live.has(id)) ? id : null;
+    }
+    out[k] = next;
+  }
+  G.assign = out;
+  G.locks = {};
+  if(src.strategy) G.strategy = src.strategy;
+  G.atBat = 0;
+  return { batting: G.order.length, dropped: [...new Set(dropped)] };
+}
+
+/* The last game played, as a lineup you can start from. */
+function lastGameLineup(){
+  const g = APP.hist[APP.hist.length - 1];
+  if(!g || !(g.order || []).length) return null;
+  return { snap: lineupSnapshot(g), opp: g.opp || "", date: g.date || "" };
+}
+
 /* ---------------------------------------------------------------------
    The lineup is a set of CHANGE POINTS, not seven independent innings.
 
@@ -1756,6 +1823,18 @@ function renderLineup(){
     : gaps.join(" · ");
   $("setReady").innerHTML = `<b>${posFilled}</b><span>/9 POS</span>`;
   $("setReady").className = "sready" + (posFilled===9 ? " ok" : "");
+  /* Emphasis follows the likely next action: with a lineup available and nothing
+     set, loading one beats building it by hand, so it leads. */
+  const canLoad = !!lastGameLineup() || APP.saved.length > 0;
+  const lb = $("loadBtn");
+  if(lb){
+    lb.classList.toggle("pri", canLoad && posFilled === 0);
+    lb.textContent = canLoad
+      ? `📋 Load${APP.saved.length ? ` (${APP.saved.length})` : ""}`
+      : "📋 Load";
+    lb.disabled = !canLoad;
+    lb.style.opacity = canLoad ? "" : ".45";
+  }
   $("cardInn").textContent = G.log.length || G.cur > 1
     ? `EDITING INNING ${G.cur}` : "INNING 1 · CARRIES ALL GAME";
 
@@ -2330,6 +2409,51 @@ function openBenchPick(id){
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
 
+/* Load a lineup. Last game sits at the top because "same as last time" is the
+   common answer, and it is the one thing a coach can always reach for without
+   having thought to save anything. */
+function openLoadLineup(){
+  const lastG = lastGameLineup();
+  const rows = [];
+  const nameOf = ids => ids.slice(0,4).map(id=>last(P(id)?.name||"?")).join(", ")
+    + (ids.length > 4 ? ` +${ids.length-4}` : "");
+
+  if(lastG) rows.push(`<button class="pick" data-act="loadlast">
+      <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.9rem">↺</span>
+      <span class="nm">Last game${lastG.opp?` · ${esc(lastG.opp)}`:""}
+        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+          lastG.snap.order.length} batting · ${esc(nameOf(lastG.snap.order))}</span></span>
+      <span class="meta">${esc(lastG.date||"")}</span>
+    </button>`);
+
+  rows.push(...APP.saved.map((L,i)=>`<button class="pick" data-act="loadsaved" data-i="${i}">
+      <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.9rem">📋</span>
+      <span class="nm">${esc(L.name)}
+        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+          L.order.length} batting · ${esc(nameOf(L.order))}</span></span>
+      <span class="meta"><span data-act="dropsaved" data-i="${i}" style="color:var(--hit);padding:0 4px">✕</span></span>
+    </button>`));
+
+  $("sheetTitle").textContent = "LOAD A LINEUP";
+  $("sheetBody").innerHTML = (rows.length ? rows.join("") :
+    `<div class="faint" style="font-size:.78rem;padding:4px;line-height:1.55">
+       Nothing saved yet, and no previous game to borrow from. Build a lineup and tap
+       <b>Save</b> — it'll be here next week.</div>`) +
+    `<div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
+      Loading brings the batting order and the defence, not pitch counts or at-bats.
+      Anyone who has left the roster or isn't here today is dropped and named.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
+
+/* Report what a load actually did. A lineup that quietly fields a kid who went
+   home is worse than no lineup, so the dropouts are the headline. */
+function afterLoad(res, what){
+  save(); render();
+  toast(res.dropped.length
+    ? `${what} — ${res.dropped.join(", ")} not available, left out`
+    : `${what} — ${res.batting} batting`);
+}
+
 /* Adding to a position chart. Only players not already on it, ordered by who has
    the fewest innings there, so the sheet leads with the kid you are most likely
    trying to develop rather than making you hunt. */
@@ -2558,6 +2682,36 @@ const ACT = {
   /* The row is the biggest target on the screen, so it gets the action a coach
      actually repeats mid-game: put the order back in sync with the field. */
   nop(){},
+  loadlineup(){ openLoadLineup(); },
+  loadlast(){
+    const L = lastGameLineup(); closeSheet();
+    if(!L) return;
+    afterLoad(applyLineup(L.snap), "Loaded last game's lineup");
+  },
+  loadsaved(el){
+    const L = APP.saved[+el.dataset.i]; closeSheet();
+    if(!L) return;
+    afterLoad(applyLineup(L), `Loaded "${L.name}"`);
+  },
+  dropsaved(el){
+    const i = +el.dataset.i, L = APP.saved[i];
+    if(!L || !confirm(`Delete the saved lineup "${L.name}"?`)) return;
+    APP.saved.splice(i, 1); save(); openLoadLineup();
+  },
+  savelineup(){
+    if(!G.order.length){ toast("Nothing to save yet"); return; }
+    const dflt = G.opp ? `vs ${G.opp}` : `Lineup ${APP.saved.length + 1}`;
+    const name = (prompt("Name this lineup", dflt) || "").trim();
+    if(!name) return;
+    const snapshot = Object.assign({name, date:G.date}, lineupSnapshot());
+    const at = APP.saved.findIndex(L=>L.name.toLowerCase() === name.toLowerCase());
+    if(at >= 0){
+      if(!confirm(`"${name}" already exists. Replace it?`)) return;
+      APP.saved[at] = snapshot;
+    }else APP.saved.push(snapshot);
+    save(); renderLineup();
+    toast(`Saved "${name}"`);
+  },
   cardscope(el){ UI.cardAll = el.dataset.v === "all"; renderLineup(); },
   strat(el){ G.strategy = el.dataset.k; save(); renderLineup();
     toast(strat().label + " — tap Auto-fill to apply"); },
@@ -2771,7 +2925,12 @@ const ACT = {
     snap();
     APP.hist.push(JSON.parse(JSON.stringify(G)));
     APP.game = G = freshGame(APP.roster, G);
-    save(); render(); toast("Game saved to season history");
+    save(); render();
+    /* The one moment the offer is worth interrupting for: the game just banked
+       IS the lineup you'd most likely reuse, and hunting for a button after the
+       fact is the friction this whole feature exists to remove. Dismissible. */
+    if(lastGameLineup()){ UI.tab = "lineup"; render(); openLoadLineup(); }
+    else toast("Game saved to season history");
   },
   reset(){
     if(!confirm("Reset this game? Clears the grid, at-bats, pitch counts and notes.")) return;
@@ -2816,7 +2975,12 @@ const ACT = {
      have your whole setup, offline. */
   saveAsHTML(){
     pageSource().then(src=>{
-      const seedData = { roster: APP.roster.map(p=>({id:p.id,num:p.num,name:p.name,pos:p.pos,present:true})) };
+      const seedData = {
+        roster: APP.roster.map(p=>({id:p.id,num:p.num,name:p.name,pos:p.pos,present:true})),
+        // Saved lineups point at player ids, and the roster above carries the same
+        // ids, so they survive the move to another device intact.
+        saved: APP.saved
+      };
       // The marker is assembled from pieces on purpose. If the literal appeared
       // here in one piece, this line would be the FIRST match in the page source
       // and the export would overwrite its own exporter instead of the boot seed.
@@ -3087,6 +3251,7 @@ document.addEventListener("input", e=>{
 
   let joined = [];
   if(!load()){
+    if(SEED_SAVED && SEED_SAVED.saved) APP.saved = SEED_SAVED.saved;
     const carried = SEED_SAVED ? SEED_SAVED.roster
                   : (TEAM && TEAM.roster.length) ? TEAM.roster
                   : SEED_ROSTER;
