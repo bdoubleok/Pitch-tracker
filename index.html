@@ -532,11 +532,17 @@
 
 // NOVA Premier 14U roster (from your spring CSV, when this group was 13U)
 const ROSTER = [
+  // The nine who carried over from the spring, in the order they were in.
   {num:12,name:"Comottor, Jon"}, {num:5,name:"Kingsland, Gavin"},
   {num:11,name:"Kupets, Ethan"}, {num:3,name:"Cook, Max"},
   {num:13,name:"Edwards, Vinny"}, {num:31,name:"Hayes, Ryan"},
   {num:9,name:"Walowac, Zach"}, {num:1,name:"Leach, Troy"},
-  {num:6,name:"Larson, Christopher"}
+  {num:6,name:"Larson, Christopher"},
+  // Eight added for the fall, alphabetical. Seventeen is the whole roster.
+  {num:2,name:"Crabb, Ryan"},     {num:44,name:"Jennings, Ethan"},
+  {num:33,name:"Kang, Kyle"},     {num:25,name:"Kim, Eddie"},
+  {num:23,name:"Rachman, Benjamin"}, {num:27,name:"Robinson, Tyler"},
+  {num:37,name:"Rohrbach, Charlie"}, {num:34,name:"Whitacre, Hunter"}
 ];
 // NOVA Premier Orange 17U roster (from your summer CSV; some entries lacked a last name / number in GameChanger)
 const ROSTER_17U = [
@@ -620,12 +626,38 @@ function persist(){
    so rename it on load — otherwise the seed says 14U and the saved copy says
    13U, and the app contradicts itself depending on whose phone you're on. */
 const ageUp = n => n === "NOVA Premier 13U" ? "NOVA Premier 14U" : n;
+
+/* Players join mid-season, but the seed above only runs on a device that has
+   never opened this app. Every phone that used it in the spring is carrying a
+   nine-player roster in localStorage and would never see the eight who joined
+   for the fall. So reconcile on load: anyone in the compiled roster who isn't
+   on the saved team gets appended. Matching is by name, nobody is ever removed,
+   and no existing stat line is touched — a returning player keeps his season.
+   Only the team this roster belongs to is touched; the 17U squad is its own. */
+const normName = s => String(s||"").trim().toLowerCase().replace(/\s+/g," ");
+function mergeRoster(team, roster){
+  if(!team || !team.game) return 0;
+  const list = team.game.pitchers || (team.game.pitchers = []);
+  const have = new Set(list.map(p=>normName(p.name)));
+  let added = 0;
+  (roster||[]).forEach(p=>{
+    if(have.has(normName(p.name))) return;
+    list.push(freshPitcher(p)); have.add(normName(p.name)); added++;
+  });
+  return added;
+}
 function loadApp(){
   try{
     const j=localStorage.getItem("npt_app_v2");
     if(j){ const o=JSON.parse(j);
       APP={ active:o.active||0, teams:(o.teams||[]).map(t=>({id:t.id||uid(),name:ageUp(t.name),game:normalizeGame(t.game),tourn:normalizeTourn(t.tourn),hist:[]})) };
-      if(APP.teams.length) return true;
+      if(APP.teams.length){
+        APP.teams.forEach(t=>{
+          if(t.name === "NOVA Premier 14U") mergeRoster(t, ROSTER);
+          else if(t.name === "NOVA Premier Orange 17U") mergeRoster(t, ROSTER_17U);
+        });
+        return true;
+      }
     }
   }catch(_){}
   return false;

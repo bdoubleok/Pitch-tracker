@@ -610,12 +610,19 @@ const IS_AB = {"1B":1,"2B":1,"3B":1,"HR":1,"K":1,"OUT":1,"ROE":1,"FC":1};
 const IS_HIT = {"1B":1,"2B":1,"3B":1,"HR":1};
 
 /* NOVA Premier roster — carried over from the Pitch Tracker, now 14U. */
+/* Kept byte-for-byte in step with the tracker's ROSTER. This is only the
+   fallback for a copy opened with no tracker beside it — normally the roster
+   comes from whichever team is active over there. */
 const SEED_ROSTER = [
   {num:12,name:"Comottor, Jon"},   {num:5, name:"Kingsland, Gavin"},
   {num:11,name:"Kupets, Ethan"},   {num:3, name:"Cook, Max"},
   {num:13,name:"Edwards, Vinny"},  {num:31,name:"Hayes, Ryan"},
   {num:9, name:"Walowac, Zach"},   {num:1, name:"Leach, Troy"},
-  {num:6, name:"Larson, Christopher"}
+  {num:6, name:"Larson, Christopher"},
+  {num:2, name:"Crabb, Ryan"},     {num:44,name:"Jennings, Ethan"},
+  {num:33,name:"Kang, Kyle"},      {num:25,name:"Kim, Eddie"},
+  {num:23,name:"Rachman, Benjamin"}, {num:27,name:"Robinson, Tyler"},
+  {num:37,name:"Rohrbach, Charlie"}, {num:34,name:"Whitacre, Hunter"}
 ];
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
@@ -1411,10 +1418,7 @@ function renderLineup(){
   const bench = subs.length ? `<div class="benchwarn"><span class="ic">🪑</span><div>
       <b>${subs.length} not batting this game</b>
       <div class="who">${subs.map(p=>esc(label(p))).join(" · ")}</div>
-      <div class="fix">${
-        G.order.length >= 12
-          ? `The order is full at 12, the largest lineup. To bat one of them, move someone out of the order first.`
-          : `Raise "How many bat" above, or tap ▲ to move them in.`}</div>
+      <div class="fix">Tap <b>ALL</b> under "How many bat" to bat everyone, or ▲ to move one in.</div>
     </div></div>` : "";
 
   $("orderNote").innerHTML = bench + (notes.length
