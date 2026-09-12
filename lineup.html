@@ -67,6 +67,19 @@
   .hrow input, .hrow select{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);
     border-radius:8px;padding:7px 9px;font-size:.9rem;min-width:0}
   #opp{flex:1}
+
+  /* ---------- App switcher ----------
+     The tracker and the lineup manager are one product in two pages, so this
+     strip is byte-identical in index.html and lineup.html: same markup, same
+     rules, same position. Crossing between the pages should feel like changing
+     tabs, not like landing on a different site. */
+  .appnav{display:flex;gap:6px;margin-bottom:9px}
+  .appnav a{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+    padding:6px 0;border-radius:8px;background:var(--navy-850);border:1px solid var(--line);
+    color:var(--ink-faint);text-decoration:none;font-family:var(--mono);font-weight:700;
+    font-size:.62rem;letter-spacing:1.4px}
+  .appnav a .ic{font-size:.9rem;letter-spacing:0}
+  .appnav a.on{background:var(--navy-700);border-color:var(--strike-d);color:var(--strike)}
   .iconbtn{width:38px;height:36px;border-radius:8px;background:var(--navy-850);border:1px solid var(--line);
     display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex:0 0 auto}
 
@@ -296,13 +309,16 @@
   .pick.blocked .meta{color:var(--hit)}
 
   /* ---------- Bottom nav ---------- */
-  nav{position:fixed;bottom:0;left:0;right:0;z-index:40;max-width:560px;margin:0 auto;
+  /* Scoped to .tabbar, not bare `nav` — an element selector this opinionated
+     (fixed to the bottom of the screen) captures every <nav> on the page,
+     including the app switcher up in the header. */
+  nav.tabbar{position:fixed;bottom:0;left:0;right:0;z-index:40;max-width:560px;margin:0 auto;
     background:linear-gradient(0deg,var(--navy-900),rgba(11,20,41,.95));backdrop-filter:blur(10px);
     border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-  nav button{flex:1;padding:7px 2px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:3px}
-  nav .ic{font-size:1.05rem;line-height:1}
-  nav .tl{font-size:.52rem;letter-spacing:1px;font-weight:800;color:var(--ink-faint)}
-  nav button.on .tl{color:var(--strike)}
+  nav.tabbar button{flex:1;padding:7px 2px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:3px}
+  nav.tabbar .ic{font-size:1.05rem;line-height:1}
+  nav.tabbar .tl{font-size:.52rem;letter-spacing:1px;font-weight:800;color:var(--ink-faint)}
+  nav.tabbar button.on .tl{color:var(--strike)}
   nav button.on{background:var(--navy-800)}
 
   /* ---------- Bottom sheet (player picker) ---------- */
@@ -332,6 +348,10 @@
 <body>
 
 <header>
+  <nav class="appnav">
+    <a href="index.html"><span class="ic">⚾</span>TRACKER</a>
+    <a href="lineup.html" class="on" aria-current="page"><span class="ic">▦</span>LINEUP</a>
+  </nav>
   <div class="hrow">
     <span class="badge">NOVA 14U</span>
     <input id="opp" placeholder="Opponent">
@@ -534,7 +554,7 @@
   </section>
 </main>
 
-<nav>
+<nav class="tabbar">
   <button class="on" data-act="tab" data-tab="field"><span class="ic">⚾</span><span class="tl">FIELD</span></button>
   <button data-act="tab" data-tab="lineup"><span class="ic">▦</span><span class="tl">LINEUP</span></button>
   <button data-act="tab" data-tab="arms"><span class="ic">⟳</span><span class="tl">ARMS</span></button>
@@ -1582,7 +1602,7 @@ const ACT = {
   tab(el){ UI.tab = el.dataset.tab;
     ["field","lineup","arms","depth","time","notes","set"].forEach(t=>
       $("tab-"+t).classList.toggle("hide", t!==UI.tab));
-    document.querySelectorAll("nav button").forEach(b=>
+    document.querySelectorAll("nav.tabbar button").forEach(b=>
       b.classList.toggle("on", b.dataset.tab===UI.tab));
     window.scrollTo(0,0); render();
   },
