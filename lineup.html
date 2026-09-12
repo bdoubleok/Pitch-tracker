@@ -294,6 +294,14 @@
   .planrow.proj .cnt b{color:var(--ink-dim)}
   .armcard{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:11px;margin-bottom:8px}
   .armcard.warn{border-color:var(--ball-d)}
+  /* Sitting a player the whole game is a decision, not a detail — it gets the
+     weight of one, rather than a line of grey micro-copy. */
+  .benchwarn{display:flex;gap:9px;align-items:flex-start;margin-top:10px;padding:9px 10px;
+    border:1px solid var(--ball-d);border-radius:var(--r-sm);background:rgba(255,176,46,.08)}
+  .benchwarn .ic{font-size:.95rem;line-height:1.3}
+  .benchwarn b{color:var(--ball);display:block;font-size:.78rem;margin-bottom:2px}
+  .benchwarn .who{font-size:.76rem;color:var(--ink);line-height:1.5}
+  .benchwarn .fix{font-size:.66rem;color:var(--ink-dim);margin-top:3px;line-height:1.5}
   .armcard.over{border-color:var(--warn)}
   .armcard .top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
   .armcard .nm{flex:1;font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -711,6 +719,35 @@ function adoptLegacySave(teams){
     localStorage.setItem(BASE_KEY + ":" + best.id, legacy);
     localStorage.removeItem(BASE_KEY);
   }catch(e){}
+}
+
+/* The roster used to be captured once — the first time this page built a
+   lineup for a team — and after that the saved lineup always won. That's right
+   for depth-chart ranks, which take real work to set and must never be blown
+   away by a re-seed. But it also meant the roster was frozen: add a kid in the
+   tracker in week three and he would never appear here, with nothing said.
+
+   So reconcile instead of choosing a winner. Anyone on the tracker's roster
+   who isn't here gets added, keeping every rank already set. Nobody is ever
+   removed — a player can be added on this page directly, and the tracker has
+   no way to know about him, so treating "not in the tracker" as "delete" would
+   throw away real work. Match on name, since the two apps mint their own ids. */
+const normName = s => String(s||"").trim().toLowerCase().replace(/\s+/g," ");
+function syncFromTracker(){
+  if(!TEAM || !TEAM.roster.length) return [];
+  const have = new Set(APP.roster.map(p=>normName(p.name)));
+  const fresh = TEAM.roster.filter(p=>p.name && !have.has(normName(p.name)));
+  if(!fresh.length) return [];
+  fresh.forEach(p=>{
+    const np = Object.assign(freshPlayer(p), p, {present:true});
+    np.id = uid();                       // ids are ours, not the tracker's
+    APP.roster.push(np);
+    // Slot him in to bat if the order has room. If it's already full he shows
+    // up on the bench line instead, which now says so loudly.
+    if(G && G.order && G.order.length < G.size) G.order.push(np.id);
+  });
+  save();
+  return fresh;
 }
 
 /* The badge fits about two words, and what identifies a team is the TAIL —
@@ -1342,9 +1379,20 @@ function renderLineup(){
       G.order.length < G.size ? "mark more players present on the Depth tab" : "trim it"}.</span>`);
   if(G.size > 9) notes.push(`Badges show this inning's role. ${G.size-9} ${EH_LABEL} bat${G.size-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
   if(dh && dh.mode==="ten") notes.push(`${esc(last(P(dh.forId)?.name||""))} fields but doesn't bat — the DH holds his slot.`);
-  if(subs.length) notes.push(`Not in the game: ${subs.map(p=>esc(last(p.name))).join(", ")}.`);
-  $("orderNote").innerHTML = notes.length
-    ? `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>` : "";
+
+  /* These players are present and will not bat at all. Say who, say why, and
+     say the fix — the lineup only holds 12, so a 13th needs someone else out. */
+  const bench = subs.length ? `<div class="benchwarn"><span class="ic">🪑</span><div>
+      <b>${subs.length} not batting this game</b>
+      <div class="who">${subs.map(p=>esc(label(p))).join(" · ")}</div>
+      <div class="fix">${
+        G.order.length >= 12
+          ? `The order is full at 12, the largest lineup. To bat one of them, move someone out of the order first.`
+          : `Raise "How many bat" above, or tap ▲ to move them in.`}</div>
+    </div></div>` : "";
+
+  $("orderNote").innerHTML = bench + (notes.length
+    ? `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>` : "");
 
   renderDH();
 }
@@ -2095,6 +2143,7 @@ document.addEventListener("input", e=>{
   TEAM = trackerTeam();
   renderTeamBadge();
 
+  let joined = [];
   if(!load()){
     const carried = SEED_SAVED ? SEED_SAVED.roster
                   : (TEAM && TEAM.roster.length) ? TEAM.roster
@@ -2108,7 +2157,11 @@ document.addEventListener("input", e=>{
   }
   G = APP.game;
   if(!G.order.length) G.order = here().map(p=>p.id).slice(0, G.size);
+  joined = syncFromTracker();
   render();
+  // Say it out loud. A player quietly appearing in a list is a player the
+  // coach doesn't know he has.
+  if(joined.length) toast(`Added from the tracker: ${joined.map(p=>last(p.name)).join(", ")}`);
 })();
 </script>
 </body>
