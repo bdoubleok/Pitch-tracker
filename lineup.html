@@ -181,14 +181,66 @@
     padding-top:3px;vertical-align:top}
 
   /* batting order list */
-  .ord{display:flex;align-items:center;gap:6px;background:var(--navy-850);border:1px solid var(--line);
-    border-radius:var(--r-sm);padding:7px 8px;margin-bottom:6px}
-  .ord .slotno{font-family:var(--mono);font-weight:800;color:var(--ink-faint);width:14px;text-align:center;font-size:.85rem}
+  /* Apple asks for 44pt of tappable area and Material for 48dp, with 8px between
+     neighbours. The old row ran three 27px buttons at 6px apart — roughly a third
+     of the recommended area each — which is most of why moving anyone was a
+     fight. Every control here now clears 44px, and the row is 56px so the whole
+     thing is comfortable to hit while scrolling a seventeen-deep list. */
+  .ord{display:flex;align-items:center;gap:8px;background:var(--navy-850);border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:0 6px 0 0;margin-bottom:8px;min-height:56px;position:relative;
+    touch-action:pan-y}
+  /* The slot number is the shortcut for a long move. Dragging 17th to 1st means
+     holding through an auto-scroll across more than a screen; picking the number
+     is two taps at any distance. Drag stays for nudges, which is what it's good
+     at — the two cover different jobs rather than competing. */
+  .ord .slotno{flex:none;width:30px;height:44px;border:0;background:transparent;font-family:var(--mono);
+    font-weight:800;color:var(--ink-faint);text-align:center;font-size:.85rem;
+    display:flex;align-items:center;justify-content:center;border-radius:8px}
+  .ord .slotno:active{background:var(--navy-800);color:var(--foul)}
+  /* The move-to grid inside the sheet. */
+  .slotgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .slotgrid button{height:52px;border-radius:10px;background:var(--navy-850);border:1px solid var(--line);
+    font-family:var(--mono);font-weight:800;font-size:.95rem;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+  .slotgrid button span{font-size:.46rem;letter-spacing:.5px;color:var(--ink-faint);font-weight:700}
+  .slotgrid button.now{border-color:var(--foul);background:var(--foul-d);color:#fff}
+  .slotgrid button.now span{color:#cfe0ff}
   /* min-width:0 lets the name actually shrink inside the flex row; without it a
      flex item refuses to go below its content width and pushes the buttons off. */
-  .ord .nm{flex:1;min-width:0;font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ord .mini{flex:none;width:27px;height:29px;border-radius:7px;background:var(--navy-800);border:1px solid var(--line);
-    display:flex;align-items:center;justify-content:center;font-size:.78rem;color:var(--ink-dim)}
+  /* The controls now take 118px of fixed width between them, which left the name
+     competing for what was over — and losing, as "H. Whitac…". Its badge and
+     line score move under it instead, so the name keeps the full remaining
+     width and the row still reads in one glance. */
+  .ord .nm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;justify-content:center}
+  .ord .nm b{font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ord .nm .sub{display:flex;align-items:center;gap:6px;font-size:.6rem}
+
+  /* The handle is the ONLY draggable surface. Dragging the whole row would make
+     every attempt to scroll a seventeen-row list start a reorder instead —
+     touch-action:none here and pan-y on the row keeps the two gestures apart. */
+  .grip{flex:none;width:44px;align-self:stretch;border:0;background:transparent;border-radius:var(--r-sm) 0 0 var(--r-sm);
+    display:flex;align-items:center;justify-content:center;color:var(--ink-faint);
+    touch-action:none;cursor:grab}
+  .grip:active{cursor:grabbing;background:rgba(91,141,239,.14);color:var(--foul)}
+  .grip svg{pointer-events:none}
+  .ord .drop{flex:none;width:44px;height:44px;border-radius:9px;background:var(--navy-800);
+    border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+    font-size:1.05rem;line-height:1;color:var(--ink-dim)}
+  .ord .drop:active{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
+
+  /* While a row is being dragged it follows the finger; the rest shuffle to show
+     where it would land, so the result is visible before you let go. */
+  .ord.dragging{opacity:.92;z-index:30;box-shadow:0 10px 24px rgba(0,0,0,.5);border-color:var(--foul)}
+  .ord.shift{transition:transform .16s ease}
+
+  /* The bench: present players not in the order. One tap puts them in. */
+  .benchrow{display:flex;align-items:center;gap:8px;background:transparent;border:1px dashed var(--line);
+    border-radius:var(--r-sm);padding:0 6px 0 12px;margin-bottom:7px;min-height:52px}
+  .benchrow .nm{flex:1;min-width:0;font-weight:600;font-size:.86rem;color:var(--ink-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .benchrow .add{flex:none;height:44px;padding:0 14px;border-radius:9px;background:var(--foul-d);
+    border:1px solid #5b8def;color:#fff;font-weight:800;font-size:.78rem;letter-spacing:.4px}
+  .benchrow .add:active{background:var(--foul)}
   .ord.atbat{border-color:var(--strike);background:#0e2a1d}
 
   /* ---------- lineup size + DH ---------- */
@@ -294,14 +346,6 @@
   .planrow.proj .cnt b{color:var(--ink-dim)}
   .armcard{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:11px;margin-bottom:8px}
   .armcard.warn{border-color:var(--ball-d)}
-  /* Sitting a player the whole game is a decision, not a detail — it gets the
-     weight of one, rather than a line of grey micro-copy. */
-  .benchwarn{display:flex;gap:9px;align-items:flex-start;margin-top:10px;padding:9px 10px;
-    border:1px solid var(--ball-d);border-radius:var(--r-sm);background:rgba(255,176,46,.08)}
-  .benchwarn .ic{font-size:.95rem;line-height:1.3}
-  .benchwarn b{color:var(--ball);display:block;font-size:.78rem;margin-bottom:2px}
-  .benchwarn .who{font-size:.76rem;color:var(--ink);line-height:1.5}
-  .benchwarn .fix{font-size:.66rem;color:var(--ink-dim);margin-top:3px;line-height:1.5}
   /* A count, not a list — reads as one value instead of eight stacked digits. */
   .ehcount{display:inline-block;min-width:17px;padding:1px 3px;border-radius:5px;
     background:rgba(255,176,46,.14);color:var(--ball);font-weight:800}
@@ -446,10 +490,10 @@
         <div class="seclab grow" style="margin:0">BATTING ORDER</div>
         <button class="btn" data-act="autoorder">Reset order</button>
       </div>
-      <div class="seclab" style="margin:0 2px 7px">HOW MANY BAT</div>
       <div class="sizebar" id="sizeBar"></div>
       <div id="orderList" style="margin-top:11px"></div>
       <div id="orderNote"></div>
+      <div id="benchList"></div>
     </div>
 
     <div class="card">
@@ -1378,51 +1422,55 @@ function renderLineup(){
   }).join("") + `</tr></tbody>`;
   $("grid").innerHTML = h;
 
-  /* Fixed sizes are for sanctioned games that cap the lineup card. ALL is the
-     continuous order a fall roster actually plays — everyone present bats, and
-     the picker has to offer it as one tap, because counting to seventeen in the
-     dugout is not a user flow. Fixed options above the squad size are dropped:
-     offering "12" to a team of ten is offering a lineup that can't be filled. */
+  /* "How many bat" was a number you set, which the order then had to be dragged
+     into agreement with — two controls for one idea, and a standing way for them
+     to disagree ("order holds 12 of 17"). The lineup size is simply how many
+     players are in the order, so these are shortcuts that move the order itself,
+     not a separate setting. Sizes at or above the squad are dropped: offering
+     "12" to a team of ten offers a lineup that can't be filled. */
   const present = here().length;
-  const fixed = [9,10,11,12].filter(n => n < present);
-  $("sizeBar").innerHTML = fixed.map(n=>
-    `<button class="${n===G.size?"on":""}" data-act="size" data-n="${n}">${n}<span>${
-      n===9?"NO EH":`${n-9} ${EH_LABEL}`}</span></button>`).join("")
-    + `<button class="${G.size>=present?"on":""}" data-act="size" data-n="${present}">${present}<span>ALL</span></button>`;
+  const n = G.order.length;
+  $("sizeBar").innerHTML = [9,10,11,12].filter(v => v < present).map(v=>
+    `<button class="${v===n?"on":""}" data-act="size" data-n="${v}">${v}<span>${
+      v===9?"NO EH":`${v-9} ${EH_LABEL}`}</span></button>`).join("")
+    + `<button class="${n>=present?"on":""}" data-act="size" data-n="${present}">${present}<span>ALL</span></button>`;
 
-  $("orderList").innerHTML = G.order.length ? G.order.map((id,k)=>{
+  const dh = dhLive();
+  $("orderList").innerHTML = n ? G.order.map((id,k)=>{
     const p = P(id); if(!p) return "";
-    const s = ST(id), r = roleIn(G.cur, id);
+    const st = ST(id), r = roleIn(G.cur, id);
     const rc = r===EH_LABEL ? "eh" : r==="DH" ? "dh" : "";
-    return `<div class="ord ${k===G.atBat%G.order.length?"atbat":""}">
-      <span class="slotno">${k+1}</span>
-      <span class="role ${rc}">${r}</span>
-      <span class="nm">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</span>
-      <span class="faint tnum" style="font-size:.64rem;margin-right:2px">${s.h}/${s.ab}</span>
-      <button class="mini" data-act="ordup" data-k="${k}">▲</button>
-      <button class="mini" data-act="orddn" data-k="${k}">▼</button>
-      <button class="mini" data-act="setab" data-k="${k}" title="Bat here next">⚾</button>
+    return `<div class="ord ${k===G.atBat%n?"atbat":""}" data-act="batfrom" data-id="${id}" data-k="${k}">
+      <button class="grip" data-act="nop" aria-label="Reorder ${esc(label(p))}">
+        <svg width="13" height="20" viewBox="0 0 13 20" fill="currentColor" aria-hidden="true">
+          <circle cx="3" cy="4" r="1.6"/><circle cx="10" cy="4" r="1.6"/>
+          <circle cx="3" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/>
+          <circle cx="3" cy="16" r="1.6"/><circle cx="10" cy="16" r="1.6"/>
+        </svg></button>
+      <button class="slotno" data-act="movepick" data-id="${id}"
+        aria-label="Move ${esc(label(p))} to another slot">${k+1}</button>
+      <span class="nm"><b>${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</b>
+        <span class="sub"><span class="role ${rc}">${r}</span><span class="faint tnum">${st.h}/${st.ab}</span></span></span>
+      <button class="drop" data-act="ordout" data-id="${id}" aria-label="Take ${esc(label(p))} out of the order">−</button>
     </div>`;
-  }).join("") : `<div class="faint" style="font-size:.8rem">No one marked present — see the Depth tab.</div>`;
+  }).join("") : `<div class="faint" style="font-size:.8rem">Nobody's batting yet — add players below, or mark them present on the Depth tab.</div>`;
 
-  const subs = subsFor(), dh = dhLive();
+  /* The bench used to be a sentence naming who was sitting. Naming a problem
+     next to no way to fix it is the whole complaint: these are rows now, and
+     the fix is the tap that's already under your thumb. */
+  const subs = subsFor();
+  $("benchList").innerHTML = subs.length ? `
+    <div class="seclab" style="margin:14px 2px 7px;color:var(--ball)">NOT BATTING · ${subs.length}</div>`
+    + subs.map(p=>`<div class="benchrow">
+        <span class="nm">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</span>
+        <button class="add" data-act="ordin" data-id="${p.id}">+ ADD</button>
+      </div>`).join("") : "";
+
   const notes = [];
-  if(G.order.length !== G.size)
-    notes.push(`<span style="color:var(--ball)">Order holds ${G.order.length} of ${G.size} — ${
-      G.order.length < G.size ? "mark more players present on the Depth tab" : "trim it"}.</span>`);
-  if(G.size > 9) notes.push(`Badges show this inning's role. ${G.size-9} ${EH_LABEL} bat${G.size-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
+  if(n > 9) notes.push(`Badges show this inning's role. ${n-9} ${EH_LABEL} bat${n-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
   if(dh && dh.mode==="ten") notes.push(`${esc(last(P(dh.forId)?.name||""))} fields but doesn't bat — the DH holds his slot.`);
-
-  /* These players are present and will not bat at all. Say who, say why, and
-     say the fix — the lineup only holds 12, so a 13th needs someone else out. */
-  const bench = subs.length ? `<div class="benchwarn"><span class="ic">🪑</span><div>
-      <b>${subs.length} not batting this game</b>
-      <div class="who">${subs.map(p=>esc(label(p))).join(" · ")}</div>
-      <div class="fix">Tap <b>ALL</b> under "How many bat" to bat everyone, or ▲ to move one in.</div>
-    </div></div>` : "";
-
-  $("orderNote").innerHTML = bench + (notes.length
-    ? `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>` : "");
+  notes.push(`Drag the handle to reorder · <b>−</b> takes a player out · tap a row to bat from there · ↺ undoes any of it.`);
+  $("orderNote").innerHTML = `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>`;
 
   renderDH();
 }
@@ -1731,8 +1779,32 @@ function openCell(inn, c){
 
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
-function closeSheet(){ UI.sheet=null; UI.dhPick=null;
+function closeSheet(){ UI.sheet=null; UI.dhPick=null; UI.movePick=null;
   $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
+
+/* Move a batter to any slot in two taps. The grid shows every position with the
+   player currently there, so the choice is made against the real order rather
+   than from memory — and the batter's own slot is marked, so "no change" is a
+   visible option rather than a guess. */
+function openMovePick(id){
+  const p = P(id); if(!p) return;
+  const from = G.order.indexOf(id); if(from < 0) return;
+  UI.movePick = {id};
+  $("sheetTitle").textContent = `MOVE ${label(p).toUpperCase()} — NOW BATTING ${from+1}`;
+  $("sheetBody").innerHTML =
+    `<div class="slotgrid">` + G.order.map((_,k)=>{
+      // Who sits at slot k once this player is pulled out of the list.
+      const rest = G.order.filter(x=>x!==id);
+      const occupant = k === from ? p : P(rest[k]) || null;
+      return `<button class="${k===from?"now":""}" data-act="moveto" data-k="${k}">${k+1}
+        <span>${k===from ? "NOW" : esc((last(occupant?.name||"")||"—").slice(0,6).toUpperCase())}</span>
+      </button>`;
+    }).join("") + `</div>
+    <div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
+      The name under each number is who bats there after the move. Dragging the
+      handle does the same thing for a slot or two.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
 
 /* Two-step picker: who hits, then who he hits for. Kept as two steps because
    picking a pair in one list is where these UIs usually go wrong. */
@@ -1832,11 +1904,6 @@ const ACT = {
   },
   skip(){ const n=G.order.length; if(!n) return; snap();
     G.atBat=(G.atBat+1)%n; save(); render(); },
-  setab(el){ snap(); G.atBat = +el.dataset.k % Math.max(1,G.order.length); save(); render(); },
-  ordup(el){ const k=+el.dataset.k; if(k<1) return; snap();
-    [G.order[k-1],G.order[k]]=[G.order[k],G.order[k-1]]; save(); renderLineup(); },
-  orddn(el){ const k=+el.dataset.k; if(k>=G.order.length-1) return; snap();
-    [G.order[k+1],G.order[k]]=[G.order[k],G.order[k+1]]; save(); renderLineup(); },
   autoorder(){ snap();
     const dh = dhLive();
     let pool = here().map(p=>p.id);
@@ -1849,7 +1916,6 @@ const ACT = {
   size(el){
     const n = +el.dataset.n;
     snap();
-    G.size = n;
     if(G.order.length > n) G.order = G.order.slice(0, n);
     else {
       const dh = dhLive();
@@ -1860,11 +1926,58 @@ const ACT = {
         G.order.push(p.id);
       });
     }
+    G.size = G.order.length;
     if(G.order.length) G.atBat = G.atBat % G.order.length;
     save(); render();
-    const short = n - G.order.length;
-    toast(short > 0 ? `Batting ${G.order.length} — ${short} more player${short===1?"":"s"} needed`
-                    : n===9 ? "Batting 9 — no extra hitters" : `Batting ${n} — ${n-9} ${EH_LABEL}`);
+    toast(G.order.length===9 ? "Batting 9 — no extra hitters"
+                             : `Batting ${G.order.length} — ${G.order.length-9} ${EH_LABEL}`);
+  },
+  /* In and out of the order, one tap each. Removing is reversible and frequent,
+     so it takes an undo rather than a confirmation dialog — a prompt on every
+     lineup tweak would be the bigger annoyance, and ↺ is already in the header. */
+  ordout(el){
+    const id = el.dataset.id, p = P(id);
+    const k = G.order.indexOf(id); if(k < 0) return;
+    snap();
+    G.order.splice(k, 1);
+    G.size = G.order.length;
+    if(G.order.length) G.atBat = G.atBat % G.order.length;
+    save(); render();
+    toast(`${last(p?.name||"Player")} out of the order — ↺ to undo`);
+  },
+  ordin(el){
+    const id = el.dataset.id, p = P(id);
+    if(G.order.includes(id)) return;
+    snap();
+    G.order.push(id);
+    G.size = G.order.length;
+    save(); render();
+    toast(`${last(p?.name||"Player")} batting ${G.order.length}`);
+  },
+  /* The row is the biggest target on the screen, so it gets the action a coach
+     actually repeats mid-game: put the order back in sync with the field. */
+  nop(){},
+  movepick(el){ openMovePick(el.dataset.id); },
+  moveto(el){
+    const to = +el.dataset.k, id = UI.movePick && UI.movePick.id;
+    closeSheet();
+    if(!id) return;
+    const from = G.order.indexOf(id);
+    if(from < 0 || to === from) return;
+    snap();
+    const atBatId = G.order[G.atBat];
+    G.order.splice(from, 1);
+    G.order.splice(to, 0, id);
+    const back = G.order.indexOf(atBatId);
+    if(back >= 0) G.atBat = back;
+    save(); render();
+    toast(`${last(P(id)?.name||"He")} batting ${to+1}`);
+  },
+  batfrom(el){
+    const k = +el.dataset.k;
+    if(!(k >= 0) || k === G.atBat) return;
+    snap(); G.atBat = k; save(); render();
+    toast(`${last(P(G.order[k])?.name||"He")} up next`);
   },
 
   dhadd(el){
@@ -2116,6 +2229,110 @@ function absoluteTrackerLink(src){
   try{ abs = new URL("index.html", location.href).href; }catch(e){ return src; }
   return src.replace(/<a href="index\.html"/, '<a href="' + abs + '"');
 }
+
+/* ---------------------------------------------------------------------
+   Dragging a batting slot
+
+   Pointer events rather than HTML5 drag-and-drop, which is unreliable on
+   touch; and bound to the handle alone, because a seventeen-row list has to
+   stay scrollable. The rows in between shift as you go, so where the player
+   will land is visible before you let go rather than after.
+
+   Reordering keeps the same kid at the plate: the at-bat marker follows the
+   player, not the slot number he used to occupy.
+   --------------------------------------------------------------------- */
+(function reorder(){
+  let st = null;
+
+  document.addEventListener("pointerdown", e=>{
+    const grip = e.target.closest(".grip");
+    const list = $("orderList");
+    if(!grip || !list || !list.contains(grip)) return;
+    const row = grip.closest(".ord"); if(!row) return;
+    e.preventDefault();
+    const rows = [...list.querySelectorAll(".ord")];
+    const from = rows.indexOf(row);
+    const step = rows.length > 1
+      ? rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top
+      : row.getBoundingClientRect().height;
+    st = { row, rows, from, to:from, step, y0:e.clientY, lastY:e.clientY, scroll:0, raf:0 };
+    try{ grip.setPointerCapture(e.pointerId); }catch(_){}
+    row.classList.add("dragging");
+    rows.forEach(r=>{ if(r !== row) r.classList.add("shift"); });
+    if(navigator.vibrate) navigator.vibrate(8);
+  }, {passive:false});
+
+  /* Seventeen rows are taller than the screen, so a drag from the bottom of the
+     order to the top has to bring the page with it: hold near either edge and it
+     scrolls, faster the closer you get. Without this, any move longer than a
+     screen is impossible rather than merely awkward. */
+  const EDGE = 90, MAX_SPEED = 14;
+  function autoScroll(y){
+    const top = y - EDGE, bot = (window.innerHeight - 64) - y;   // 64 = tab bar
+    let v = 0;
+    if(top < 0) v = Math.max(-MAX_SPEED, top / EDGE * MAX_SPEED);
+    else if(bot < 0) v = Math.min(MAX_SPEED, -bot / EDGE * MAX_SPEED);
+    if(!v){ st.scroll = 0; return; }
+    st.scroll = v;
+    if(!st.raf){
+      const tick = ()=>{
+        if(!st || !st.scroll){ if(st) st.raf = 0; return; }
+        const y0 = window.scrollY;
+        window.scrollBy(0, st.scroll);
+        // The finger hasn't moved, but the page under it has, so the drag
+        // origin has to move with it or the row snaps back as you scroll.
+        st.y0 -= (window.scrollY - y0);
+        place();
+        st.raf = requestAnimationFrame(tick);
+      };
+      st.raf = requestAnimationFrame(tick);
+    }
+  }
+
+  function place(){
+    if(!st) return;
+    const dy = st.lastY - st.y0;
+    st.row.style.transform = `translateY(${dy}px)`;
+    const to = Math.max(0, Math.min(st.rows.length - 1, st.from + Math.round(dy / st.step)));
+    if(to === st.to) return;
+    st.to = to;
+    st.rows.forEach((r,i)=>{
+      if(r === st.row) return;
+      const shift = (st.from < to && i > st.from && i <= to) ? -st.step
+                  : (st.from > to && i >= to && i < st.from) ?  st.step : 0;
+      r.style.transform = shift ? `translateY(${shift}px)` : "";
+    });
+    if(navigator.vibrate) navigator.vibrate(4);
+  }
+
+  document.addEventListener("pointermove", e=>{
+    if(!st) return;
+    e.preventDefault();
+    st.lastY = e.clientY;
+    place();
+    autoScroll(e.clientY);
+  }, {passive:false});
+
+  function end(){
+    if(!st) return;
+    const { row, rows, from, to, raf } = st;
+    if(raf) cancelAnimationFrame(raf);
+    st = null;
+    row.classList.remove("dragging"); row.style.transform = "";
+    rows.forEach(r=>{ r.classList.remove("shift"); r.style.transform = ""; });
+    if(to === from) return;
+    snap();
+    const atBatId = G.order[G.atBat];
+    const [id] = G.order.splice(from, 1);
+    G.order.splice(to, 0, id);
+    const back = G.order.indexOf(atBatId);
+    if(back >= 0) G.atBat = back;
+    save(); render();
+    toast(`${last(P(id)?.name || "He")} batting ${to + 1}`);
+  }
+  document.addEventListener("pointerup", end);
+  document.addEventListener("pointercancel", end);
+})();
 
 /* =====================================================================
    EVENT WIRING
