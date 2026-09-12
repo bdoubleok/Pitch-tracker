@@ -134,6 +134,7 @@
 
   .benchstrip{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
   .bchip{font-size:.7rem;font-family:var(--mono);background:var(--navy-850);border:1px solid var(--ball-d);
+    min-height:38px;
     color:var(--ball);border-radius:20px;padding:4px 10px;font-weight:700}
 
   /* at-bat panel */
@@ -284,6 +285,21 @@
   .toggle.out{background:var(--hit-d);border-color:#b83340;color:#ffd2d6}
 
   /* by-position depth view */
+  /* A scope switch inside a picker: which slice of the roster (or of the nine
+     positions) the list below is showing. Reads as one control with two states
+     rather than two buttons that happen to be adjacent. */
+  .pickbar{display:flex;gap:6px;margin-bottom:10px}
+  .pickbar button{flex:1;min-height:44px;padding:6px 8px;border-radius:var(--r-sm);
+    background:var(--navy-850);border:1px solid var(--line);color:var(--ink-dim);
+    font-family:var(--mono);font-weight:800;font-size:.6rem;letter-spacing:.6px}
+  .pickbar button span{display:block;font-size:.72rem;margin-top:2px;opacity:.8}
+  .pickbar button.on{background:var(--foul-d);border-color:#8fb4ff;color:#fff}
+  .pickbar button:disabled{opacity:.35}
+  /* The bench chip carries a count of how many spots he's charted for, so you can
+     see who has options before tapping. */
+  .bchip .cnt{display:inline-block;margin-left:5px;padding:0 4px;border-radius:4px;
+    background:rgba(255,176,46,.18);color:var(--ball);font-size:.6rem;font-weight:800}
+
   /* ---------- strategy chips ---------- */
   .stratbar{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
   .stratbar button{flex:0 0 auto;min-height:46px;padding:7px 11px;border-radius:var(--r-sm);
@@ -1495,8 +1511,15 @@ function renderField(){
   const b = benchFor(G.cur);
   $("bench").innerHTML = b.length
     ? `<span class="faint" style="font-size:.6rem;letter-spacing:1.5px;align-self:center">BENCH</span>` +
-      b.map(p=>`<span class="bchip">${esc(last(p.name))}</span>`).join("")
+      b.map(p=>{
+        const n = POSK.filter(c=>p.pos[c]>0).length;
+        return `<button class="bchip" data-act="benchpick" data-id="${p.id}">${esc(last(p.name))}${
+          n ? `<span class="cnt">${n}</span>` : ""}</button>`;
+      }).join("")
     : `<span class="faint" style="font-size:.64rem">Everyone's on the field this inning.</span>`;
+  if(b.length) $("bench").insertAdjacentHTML("beforeend",
+    `<span class="faint" style="font-size:.58rem;flex-basis:100%;line-height:1.5;margin-top:2px">
+       Tap a name to put him on the field — the number is how many spots he's charted for.</span>`);
 
   renderBatter();
   renderPitch();
@@ -2065,10 +2088,31 @@ function openCell(inn, c){
   const a = A(inn), full = POS.find(x=>x[0]===c)[1], locked = !!L(inn)[c];
   $("sheetTitle").textContent = `INNING ${inn} · ${full.toUpperCase()}`;
 
-  const list = here().slice().sort((x,y)=>
-    (x.pos[c]||9)-(y.pos[c]||9) || timeFor(x.id).total - timeFor(y.id).total);
+  /* Show the players you actually carry at this position, in chart order. A list
+     of all seventeen sorted by rank technically "put the right ones on top", but
+     you still had to read past eight names who have no business there.
 
-  $("sheetBody").innerHTML = list.map(p=>{
+     Two escapes, because a filter with no way out is a trap: if nothing is
+     charted here yet there is nobody to show, so show everyone; and mid-game a
+     coach sometimes has to put a kid somewhere he isn't listed, so ALL is always
+     one tap away. */
+  const charted = here().filter(p=>p.pos[c] > 0);
+  const showAll = UI.sheetAll || !charted.length;
+  const list = (showAll ? here().slice() : charted).sort((x,y)=>
+    (x.pos[c]||99)-(y.pos[c]||99) || timeFor(x.id).total - timeFor(y.id).total);
+  const hidden = here().length - list.length;
+
+  $("sheetBody").innerHTML = `
+    <div class="pickbar">
+      <button class="${showAll?"":"on"}" ${charted.length?`data-act="sheetscope" data-v="chart"`:"disabled"}>
+        ON THE ${c} CHART<span>${charted.length}</span></button>
+      <button class="${showAll?"on":""}" data-act="sheetscope" data-v="all">
+        EVERYONE<span>${here().length}</span></button>
+    </div>` +
+    (!charted.length ? `<div class="faint" style="font-size:.62rem;margin:0 2px 9px;line-height:1.5">
+        Nobody's on the ${c} chart yet — showing everyone. Build it on the Depth tab and
+        this list gets short.</div>` : "") +
+    list.map(p=>{
     const t = timeFor(p.id), at = t.byPos[c]||0;
     const where = POSK.find(k=>a[k]===p.id);
     const isHere = a[c]===p.id;
@@ -2083,7 +2127,9 @@ function openCell(inn, c){
       <span class="meta">${bad ? `caught<br>${caughtInnings(p.id)} inn`
         : `${t.total} inn<br>${at} at ${c}${where?`<br><span style="color:var(--ball)">now ${where}</span>`:""}`}</span>
     </button>`;
-  }).join("") + `
+  }).join("") +
+    (hidden > 0 ? `<div class="faint" style="font-size:.62rem;margin-top:8px;line-height:1.5">
+      ${hidden} more player${hidden===1?"":"s"} not on the ${c} chart — tap EVERYONE to see them.</div>` : "") + `
     <div class="row" style="margin-top:10px">
       <button class="btn wide" data-act="clearcell">Leave empty</button>
       <button class="btn wide ${locked?"pri":""}" data-act="locktoggle">${locked?"🔒 Locked":"Lock cell"}</button>
@@ -2095,7 +2141,50 @@ function openCell(inn, c){
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
 function closeSheet(){ UI.sheet=null; UI.dhPick=null; UI.movePick=null; UI.depthPick=null; UI.bpPick=null;
+  UI.sheetAll=false; UI.benchPick=null; UI.benchAll=false;
   $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
+
+/* The other way onto the field: start from the player on the bench rather than
+   from an empty spot. Shows the positions HE is charted for, because that is the
+   question being asked — "where can this kid go?" — and a nine-button grid of
+   everything would bury the two or three real answers.
+
+   A spot that's occupied still shows, with whoever has it, because swapping a
+   player in is the normal mid-game move. Taking the spot sends the occupant to
+   the bench, and the toast says so by name. */
+function openBenchPick(id){
+  const p = P(id); if(!p) return;
+  UI.benchPick = id;
+  const inn = G.cur, a = A(inn);
+  const charted = POSK.filter(c=>p.pos[c] > 0);
+  const showAll = UI.benchAll || !charted.length;
+  const list = showAll ? POSK : charted;
+  const t = timeFor(id);
+  $("sheetTitle").textContent = `${label(p).toUpperCase()} · INNING ${inn}`;
+  $("sheetBody").innerHTML = `
+    <div class="pickbar">
+      <button class="${showAll?"":"on"}" ${charted.length?`data-act="benchscope" data-v="chart"`:"disabled"}>
+        HIS POSITIONS<span>${charted.length}</span></button>
+      <button class="${showAll?"on":""}" data-act="benchscope" data-v="all">ALL NINE<span>9</span></button>
+    </div>` +
+    (!charted.length ? `<div class="faint" style="font-size:.62rem;margin:0 2px 9px;line-height:1.5">
+        ${esc(last(p.name))} isn't on any depth chart yet — showing all nine. Add him on the
+        Depth tab and this becomes a short list.</div>` : "") +
+    `<div class="slotgrid pos9">` + list.map(c=>{
+      const bad = blockedBy(inn, c, id);
+      const held = P(a[c]);
+      const rank = p.pos[c];
+      const cls = bad ? "blocked" : rank===1 ? "r1" : rank>1 ? "r2" : "";
+      return `<button class="${cls}" ${bad?"disabled":`data-act="benchset" data-c="${c}"`}>${c}
+        <span>${bad ? "BLOCKED" : held ? esc(last(held.name)).slice(0,6).toUpperCase()
+               : rank ? ord(rank) : "OPEN"}</span>
+      </button>`;
+    }).join("") + `</div>
+    <div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
+      ${t.total} innings today${charted.length ? ` · charted at ${charted.join(", ")}` : ""}.
+      A name under a position means someone's there now — tapping it swaps them out.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
 
 /* Adding to a position chart. Only players not already on it, ordered by who has
    the fewest innings there, so the sheet leads with the kid you are most likely
@@ -2215,6 +2304,25 @@ const ACT = {
     save(); closeSheet(); render();
   },
   planpick(el){ openCell(+el.dataset.i, "P"); },
+  benchpick(el){ UI.benchAll = false; openBenchPick(el.dataset.id); },
+  benchscope(el){ UI.benchAll = el.dataset.v === "all"; openBenchPick(UI.benchPick); },
+  benchset(el){
+    const id = UI.benchPick, c = el.dataset.c;
+    closeSheet();
+    if(!id) return;
+    snap();
+    const a = A(G.cur);
+    const outgoing = a[c] && a[c] !== id ? P(a[c]) : null;
+    for(const k of POSK) if(a[k]===id) delete a[k];    // he can only be in one place
+    a[c] = id;
+    save(); render();
+    toast(outgoing ? `${last(P(id).name)} to ${c} — ${last(outgoing.name)} to the bench`
+                   : `${last(P(id).name)} to ${c}`);
+  },
+  sheetscope(el){
+    UI.sheetAll = el.dataset.v === "all";
+    const {inn, c} = UI.sheet; openCell(inn, c);
+  },
   clearcell(){ const {inn,c}=UI.sheet; snap(); delete A(inn)[c]; delete L(inn)[c];
     save(); closeSheet(); render(); },
   locktoggle(){ const {inn,c}=UI.sheet; const lk=L(inn);
