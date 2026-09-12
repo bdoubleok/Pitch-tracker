@@ -207,7 +207,8 @@
   .slotgrid button{height:52px;border-radius:10px;background:var(--navy-850);border:1px solid var(--line);
     font-family:var(--mono);font-weight:800;font-size:.95rem;color:var(--ink);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
-  .slotgrid button span{font-size:.46rem;letter-spacing:.5px;color:var(--ink-faint);font-weight:700}
+  .slotgrid button span{font-size:.46rem;letter-spacing:.5px;color:var(--ink-faint);font-weight:700;
+    max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .slotgrid button.now{border-color:var(--foul);background:var(--foul-d);color:#fff}
   .slotgrid button.now span{color:#cfe0ff}
   /* min-width:0 lets the name actually shrink inside the flex row; without it a
@@ -246,6 +247,12 @@
   .benchrow .add{flex:none;height:44px;padding:0 14px;border-radius:9px;background:var(--foul-d);
     border:1px solid #5b8def;color:#fff;font-weight:800;font-size:.78rem;letter-spacing:.4px}
   .benchrow .add:active{background:var(--foul)}
+  /* Two jobs, one row: ADD puts him in an open slot, SWAP trades him for someone
+     already in the game. One of them is filled in, because two primaries is
+     none — and adding is the shorter, more common move. */
+  .benchrow .swap{flex:none;height:44px;padding:0 12px;border-radius:9px;background:transparent;
+    border:1px solid var(--line);color:var(--ink-dim);font-weight:800;font-size:.76rem;letter-spacing:.4px}
+  .benchrow .swap:active{background:var(--navy-700);border-color:var(--foul);color:#cfe0ff}
   .ord.atbat{border-color:var(--strike);background:#0e2a1d}
 
   /* ---------- lineup size + DH ---------- */
@@ -372,6 +379,11 @@
   .stratbar button.on{background:var(--foul-d);border-color:#8fb4ff;color:#fff}
 
   .slotgrid.pos9{grid-template-columns:repeat(3,1fr)}
+  /* EH is one of the things a player can be swapped INTO, so it belongs in the
+     same grid as the nine rather than hiding behind a sentence-long button. Full
+     width because it's a role, not a place on the diamond. */
+  .slotgrid button.ehchip{grid-column:1/-1;border-color:var(--ball-d);color:var(--ball)}
+  .slotgrid button.ehchip.now{border-color:var(--foul);background:var(--foul-d);color:#fff}
   .slotgrid button.r1{border-color:var(--strike-d)}
   .slotgrid button.r2{border-color:var(--foul-d)}
   .slotgrid button.blocked{opacity:.4}
@@ -1433,6 +1445,62 @@ function roleIn(inn, id){
   if(!batters().includes(id)) return "—";
   return POSK.filter(k=>a[k]).length === 9 ? EH_LABEL : "—";
 }
+/* His standing at a position, for the pick lists — and only when there IS a chart
+   to have a standing in. An empty chart means every player would wear the red
+   "off chart" stripe, which reports a judgement nobody has made yet. */
+function chartCls(c, p){
+  if(!c || !p) return "";
+  const r = p.pos[c];
+  return r === 1 ? "r1" : r > 1 ? "r2" : depthAt(c).length ? "r0" : "";
+}
+function chartNote(c, p){
+  if(!c || !p) return "";
+  const r = p.pos[c];
+  return r ? `${ord(r)} at ${c}` : depthAt(c).length ? "off chart" : "";
+}
+
+/* Where he's playing this inning, or null — which is to say, an extra hitter. */
+function posOf(inn, id){ const a = A(inn); return POSK.find(c=>a[c]===id) || null; }
+
+/* A live DH pair is official bookkeeping (NFHS 3-1-4), not a lineup move: trading
+   either half of it would quietly rewrite who is in the game, so both are held out
+   of swaps until the role is ended on purpose. */
+function dhLocked(id){
+  const dh = dhLive();
+  return !!dh && (id === dh.batterId || id === dh.forId);
+}
+
+/* =====================================================================
+   SWAP — the move a coach actually makes mid-game.
+
+   Two players trade places on the field and NOTHING happens to the batting
+   order. That is the whole point: "same spot in the order, different
+   position". Either side may be an extra hitter, because EH isn't the
+   absence of a position — it's the role of the man who isn't on the field,
+   and it trades like any of the nine.
+   ===================================================================== */
+function swapRoles(inn, aId, bId){
+  const pa = posOf(inn, aId), pb = posOf(inn, bId);
+  if(pa === pb) return false;                  // both extra hitters: nothing to trade
+  if(pb) setPos(inn, pb, aId);
+  if(pa) setPos(inn, pa, bId);
+  return true;
+}
+
+/* A substitution, which is the one case that DOES touch the order: a player who
+   isn't in the game takes the outgoing player's spot in the order and his
+   position, because that is what coming into the game means. The man he replaces
+   keeps his stats and stays available to come back in. */
+function subIn(inn, outId, inId){
+  const c = posOf(inn, outId), k = slotOf(outId);
+  if(c) setPos(inn, c, inId);
+  if(k >= 0) setSlot(k, inId);
+  else if(!batters().includes(inId)) G.order.push(inId);
+  benchFrom(inn, outId);                       // nothing of his left on the field
+  G.size = G.order.length;
+  return {c, k};
+}
+
 function benchFor(inn){
   const a = A(inn), on = new Set(POSK.map(c=>a[c]).filter(Boolean));
   return here().filter(p=>!on.has(p.id));
@@ -1980,7 +2048,7 @@ function renderLineup(){
         <span class="sub">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span>`:""}
           <span class="faint tnum">${chart.length ? esc(chart.slice(0,2).map(x=>`${ord(p.pos[x])} ${x}`).join(" · ")) : "no chart"}</span></span></span>
       <button class="pospill ${pcls}" data-act="bppick" data-id="${id}"
-        aria-label="Set ${esc(label(p))}'s position">${badge}</button>
+        aria-label="Swap ${esc(label(p))}'s position or sub for him">${badge}</button>
       <button class="benchbtn" data-act="tobench" data-id="${id}"
         aria-label="Bench ${esc(label(p))}">BE</button>
     </div>`;
@@ -1996,6 +2064,7 @@ function renderLineup(){
     <div class="seclab" style="margin:14px 2px 7px;color:var(--ball)">NOT BATTING · ${subs.length}</div>`
     + subs.map(p=>`<div class="benchrow">
         <span class="nm">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</span>
+        <button class="swap" data-act="subfor" data-id="${p.id}">⇄ SWAP</button>
         <button class="add" data-act="ordin" data-id="${p.id}">+ ADD</button>
       </div>`).join("") : "";
 
@@ -2013,7 +2082,7 @@ function renderLineup(){
   if(n > 9 && posFilled === 9)
     notes.push(`Badges show this inning's role. ${n-9} ${EH_LABEL} bat${n-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
   if(dh && dh.mode==="ten") notes.push(`${esc(last(P(dh.forId)?.name||""))} fields but doesn't bat — the DH holds his slot.`);
-  notes.push(`Drag the handle to reorder the batting order · tap the <b>number</b> to move or remove him · tap the <b>position</b> to set where he fields · ↺ undoes any of it.`);
+  notes.push(`Drag the handle to reorder the batting order · tap the <b>number</b> to move or remove him · tap the <b>position</b> to swap where he fields or sub someone in for him · <b>BE</b> empties his slot · ↺ undoes any of it.`);
   $("orderNote").innerHTML = `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>`;
 
   renderDH();
@@ -2170,35 +2239,109 @@ function renderAvail(){
    pool, don't validate the result. */
 /* Which positions can this player take THIS inning: whatever is free, plus the
    one he already holds (so the sheet can say "leave him there"). */
+/* One sheet, one question: who does this player trade places with?
+
+   The nine positions and EH answer it as a place ("he plays SS now"); the list
+   under them answers it as a person ("Newman comes in for him"). Both are the
+   same move from the coach's side, so they live in the same sheet — and neither
+   one moves anybody's spot in the batting order except the substitute, who
+   inherits it. */
 function openByPlayerPick(id){
   const p = P(id); if(!p) return;
   UI.bpPick = id;
   const inn = G.cur, a = A(inn);
   const mine = POSK.find(c=>a[c]===id) || null;
+  const k = slotOf(id);
   /* Every position is offered, not just the free ones. With nine filled, "only
      what's open" is nothing at all, and swapping two fielders is the ordinary
      mid-game move — the constraint that matters is that nobody ends up in two
      places, and a swap keeps that. An occupied button trades the two players. */
-  const choices = POSK.slice();
-  $("sheetTitle").textContent = `${label(p).toUpperCase()} · INNING ${inn}`;
-  const t = timeFor(id);
+  $("sheetTitle").textContent = `SWAP · ${label(p).toUpperCase()} · INNING ${inn}`;
+  const swapNote = k >= 0
+    ? `Tap a position to trade places with whoever has it. ${last(p.name)} keeps batting ${k+1}.`
+    : `Tap a position to trade places with whoever has it.`;
+  const subs = subsFor().filter(x => !dhLocked(x.id));
+  const locked = dhLocked(id);
+
   $("sheetBody").innerHTML =
-    `<div class="slotgrid pos9">` + choices.map(c=>{
+    `<div class="faint" style="font-size:.62rem;margin:0 2px 9px;line-height:1.5">${swapNote}</div>
+     <div class="slotgrid pos9">` + POSK.map(c=>{
       const bad = blockedBy(inn, c, id);
       const held = c!==mine && a[c] ? P(a[c]) : null;
       const rank = p.pos[c];
       const cls = c===mine ? "now" : bad ? "blocked" : rank===1 ? "r1" : rank>1 ? "r2" : "";
       return `<button class="${cls}" ${bad?"disabled":`data-act="bpset" data-c="${c}"`}>${c}
         <span>${c===mine ? "NOW" : bad ? "BLOCKED"
-          : held ? "⇄ " + esc(last(held.name)).slice(0,5).toUpperCase()
+          : held ? "⇄ " + esc(last(held.name)).slice(0,10).toUpperCase()
           : rank ? ord(rank) : depthAt(c).length ? "OFF CHART" : "OPEN"}</span>
       </button>`;
-    }).join("") + `</div>` +
-    (mine ? `<button class="btn wide" style="width:100%;margin-top:10px" data-act="bpclear">
-        Take ${esc(last(p.name))} off the field this inning</button>` : "") +
-    `<div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
-      Positions already filled this inning aren't shown. To move someone into a taken
-      spot, clear the player who has it first.</div>`;
+    }).join("") +
+    /* EH is the tenth choice, in the same grid as the nine, because "bats and
+       doesn't field" is a role you assign on purpose — not a removal you phrase
+       as a sentence. Whoever he swaps with becomes the extra hitter instead. */
+    `<button class="ehchip ${mine?"":"now"}" ${mine?`data-act="bpclear"`:"disabled"}>${EH_LABEL}
+       <span>${mine ? (k>=0 ? `BATS ${k+1}, NO POSITION` : "NO POSITION") : "NOW"}</span></button>` +
+    `</div>` +
+    (locked
+      ? `<div class="faint" style="font-size:.62rem;margin-top:12px;line-height:1.5;color:var(--ball)">
+           He's half of a live DH pair, so he can't be substituted for until the role ends
+           (Arms tab). Position swaps are fine.</div>`
+      : subs.length
+      ? `<div class="seclab" style="margin:16px 2px 8px;color:var(--ball)">SUB IN FOR HIM · ${
+           subs.length} NOT IN THE GAME</div>` +
+        subs.map(x=>{
+          const t = timeFor(x.id).total;
+          const bad = mine ? blockedBy(inn, mine, x.id) : null;
+          const note = chartNote(mine, x);
+          return `<button class="pick ${chartCls(mine, x)} ${bad?"blocked":""}"
+              ${bad?"disabled":`data-act="subin" data-id="${x.id}"`}>
+            <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${
+              x.num!==""?esc(x.num):"—"}</span>
+            <span class="nm">${esc(firstN(x.name)+" "+last(x.name))}
+              <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+                bad ? "Blocked by the catcher–pitcher rule"
+                    : k>=0 ? `takes slot ${k+1}${mine?` · ${mine}`:" · bats only"}`
+                           : mine ? `takes ${mine}` : "comes in"}</span></span>
+            <span class="meta">${t} inn${note ? `<br>${note}` : ""}</span>
+          </button>`;
+        }).join("") +
+        `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.5">
+           A sub takes his spot in the order${mine?` and his ${mine}`:""}. ${
+           esc(last(p.name))} comes out with his stats kept, and can go back in later.</div>`
+      : `<div class="faint" style="font-size:.62rem;margin-top:12px;line-height:1.5">
+           Everyone present is already in the game, so there's nobody to sub in — trade
+           positions above, or take someone out of the order first.</div>`);
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
+
+/* The same substitution from the other end: start from the player who isn't in
+   the game and pick who he replaces. The slot number rides in the jersey circle
+   because the batting spot is the thing he is inheriting. */
+function openSubFor(inId){
+  const p = P(inId); if(!p) return;
+  UI.subPick = inId;
+  const inn = G.cur;
+  const outs = batters().map(P).filter(x => x && !dhLocked(x.id));
+  $("sheetTitle").textContent = `SWAP IN · ${label(p).toUpperCase()}`;
+  $("sheetBody").innerHTML =
+    `<div class="faint" style="font-size:.62rem;margin:0 2px 9px;line-height:1.5">
+       Who comes out? ${esc(last(p.name))} takes his spot in the batting order and his
+       position this inning on.</div>` +
+    (outs.length ? outs.map(x=>{
+      const k = slotOf(x.id), c = posOf(inn, x.id), t = timeFor(x.id).total;
+      const bad = c ? blockedBy(inn, c, inId) : null;
+      const note = chartNote(c, p);          // how the INCOMING man is charted there
+      return `<button class="pick ${chartCls(c, p)} ${bad?"blocked":""}"
+          ${bad?"disabled":`data-act="subout" data-id="${x.id}"`}>
+        <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${k+1}</span>
+        <span class="nm">${esc(firstN(x.name)+" "+last(x.name))}
+          <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+            bad ? "Blocked by the catcher–pitcher rule"
+                : c ? `playing ${c} · slot ${k+1}` : `${EH_LABEL} · slot ${k+1}`}</span></span>
+        <span class="meta">${t} inn${note ? `<br>${note}` : ""}</span>
+      </button>`;
+    }).join("") : `<div class="faint" style="font-size:.78rem;padding:4px">
+        Nobody's in the batting order yet — add him with + ADD instead.</div>`);
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
 
@@ -2453,7 +2596,7 @@ function openCell(inn, c){
 }
 function closeSheet(){ UI.sheet=null; UI.dhPick=null; UI.movePick=null; UI.depthPick=null; UI.bpPick=null;
   UI.fillSlot=null;
-  UI.sheetAll=false; UI.benchPick=null; UI.benchAll=false;
+  UI.sheetAll=false; UI.benchPick=null; UI.benchAll=false; UI.subPick=null;
   $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
 
 /* The other way onto the field: start from the player on the bench rather than
@@ -2501,6 +2644,22 @@ function openBenchPick(id){
 /* Load a lineup. Last game sits at the top because "same as last time" is the
    common answer, and it is the one thing a coach can always reach for without
    having thought to save anything. */
+/* One place where a substitution actually happens, so both entry points behave
+   identically and neither can drift. */
+function doSub(outId, inId){
+  const out = P(outId), inc = P(inId);
+  closeSheet();
+  if(!out || !inc || outId === inId) return;
+  if(dhLocked(outId) || dhLocked(inId)){
+    toast("End the DH role first — Arms tab"); return;
+  }
+  snap();
+  const {c, k} = subIn(G.cur, outId, inId);
+  save(); render();
+  toast(`${last(inc.name)} in for ${last(out.name)}${k>=0?` — batting ${k+1}`:""}${
+    c?` at ${c}`:""}`);
+}
+
 function openLoadLineup(){
   const lastG = lastGameLineup();
   const rows = [];
@@ -2902,22 +3061,36 @@ const ACT = {
     const id = UI.bpPick, c = el.dataset.c;
     closeSheet();
     if(!id) return;
-    snap();
     const a = A(G.cur);
     const from = POSK.find(k=>a[k]===id) || null;     // where he is now, if anywhere
     const other = a[c] && a[c] !== id ? a[c] : null;  // who holds the spot he wants
     if(from === c) return;                            // already there
+    snap();
 
-    setPos(G.cur, c, id);
-    // He came off the field, so there is a spot to hand back — a real trade. If he
-    // came off the bench there is nowhere to put the other man, and he is benched.
-    if(from) setPos(G.cur, from, other && from ? other : null);
+    if(other) swapRoles(G.cur, id, other);            // a trade, both directions
+    else { setPos(G.cur, c, id); if(from) setPos(G.cur, from, null); }
+
+    /* NFHS 3-1-4: a ten-player DH who takes a defensive position ends the role.
+       The field tab already enforced this; entering the same move from the lineup
+       card is the same move, so it has to say so too. */
+    const dh = dhLive();
+    if(dh && dh.mode==="ten" && id===dh.batterId){
+      endDH(`${last(P(id).name)} took the field in inning ${G.cur}.`, dh.batterId);
+    }
 
     save(); render();
-    toast(other ? (from ? `${last(P(id).name)} ⇄ ${last(P(other).name)}`
-                        : `${last(P(id).name)} to ${c} — ${last(P(other).name)} to the bench`)
+    /* Where the other man went, said accurately. He only reaches "the bench" if he
+       wasn't batting; a player in the order becomes the extra hitter, which is a
+       different thing and the difference matters on a lineup card. */
+    const went = other && (from ? from : batters().includes(other) ? EH_LABEL : "the bench");
+    toast(other ? `${last(P(id).name)} to ${c} · ${last(P(other).name)} to ${went}`
                 : `${last(P(id)?.name||"He")} at ${c}, inning ${G.cur}`);
   },
+  /* Both ends of a substitution land here: from the swap sheet (he's the one
+     coming out) and from a bench row (he's the one going in). */
+  subin(el){  doSub(UI.bpPick, el.dataset.id); },
+  subout(el){ doSub(el.dataset.id, UI.subPick); },
+  subfor(el){ openSubFor(el.dataset.id); },
   bpclear(){
     const id = UI.bpPick;
     closeSheet();
@@ -2925,7 +3098,9 @@ const ACT = {
     snap();
     benchFrom(G.cur, id);
     save(); render();
-    toast(`${last(P(id)?.name||"He")} off the field from inning ${G.cur} on`);
+    const k = slotOf(id);
+    toast(k >= 0 ? `${last(P(id)?.name||"He")} is your ${EH_LABEL} — still batting ${k+1}`
+                 : `${last(P(id)?.name||"He")} off the field from inning ${G.cur} on`);
   },
   movepick(el){ openMovePick(el.dataset.id); },
   moveto(el){
