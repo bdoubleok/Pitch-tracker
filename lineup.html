@@ -616,7 +616,7 @@
       <div class="row" style="margin-top:6px">
         <button class="btn wide" data-act="autoorder">Fill roster</button>
         <button class="btn wide" data-act="clearfill">Clear D</button>
-        <button class="btn wide" data-act="clearcard">Empty card</button>
+        <button class="btn wide" data-act="clearcard">Clear players</button>
       </div>
     </div>
 
@@ -1114,11 +1114,11 @@ function setSlot(k, id){
   if(id){ const was = slotOf(id); if(was >= 0 && was !== k) G.order[was] = null; }
   G.order[k] = id || null;
 }
-/* Trailing empties are noise, not slots — a card that ends in three holes is a
-   card with three fewer slots. */
-function trimSlots(){
-  while(G.order.length && !G.order[G.order.length - 1]) G.order.pop();
-}
+/* Slots are the card's structure and only you change how many there are: + ADD
+   SLOT and the ✕ add and remove them, everything else only fills and empties
+   them. The app used to quietly pop empty slots off the end, which meant
+   clearing the card to nine holes and filling the first one destroyed the other
+   eight — the structure disappearing as a side effect of using it. */
 
 /* ---------------------------------------------------------------------
    Saved lineups
@@ -1152,7 +1152,10 @@ function applyLineup(src){
     return false;
   };
   snap();                                       // undoable like anything else
-  G.order = (src.order || []).filter(keep);
+  /* A slot that was empty when the lineup was saved stays an empty slot, and a
+     player who can't play today leaves his slot open rather than pulling
+     everyone below him up a spot. Loading a lineup shouldn't renumber it. */
+  G.order = (src.order || []).map(id => (id && keep(id)) ? id : null);
   G.size = Math.max(9, G.order.length);
   /* Rebuild the change points, dropping anyone who can't play today. The layer
      is kept with an explicit null rather than deleted, so the inning stays a
@@ -1172,7 +1175,6 @@ function applyLineup(src){
   G.locks = {};
   if(src.strategy) G.strategy = src.strategy;
   G.atBat = 0;
-  trimSlots();
   return { batting: batters().length, dropped: [...new Set(dropped)] };
 }
 
@@ -2706,13 +2708,20 @@ const ACT = {
     if(!confirm("Clear the defensive positions for every inning?\n\nThe batting order stays.")) return;
     snap(); G.assign={}; G.locks={}; save(); render(); toast("Positions cleared");
   },
+  /* Starting from a blank card means a blank card, not a missing one: the
+     batting slots stay and go empty, so slot 4 is still slot 4 and you fill it
+     by tapping it. Taking the slots away as well would make you rebuild the
+     card's shape before you could start writing names in it. */
   clearcard(){
-    if(!confirm("Empty the whole lineup card?\n\nBatting order and defensive positions both go. Your depth chart and roster are untouched.")) return;
+    const slots = G.order.length || Math.max(9, G.size || 9);
+    if(!confirm(`Clear every player off the lineup card?\n\nThe ${slots} batting slots stay — they go empty — and the defensive positions clear. Your depth chart and roster are untouched.`)) return;
     snap();
-    G.order = []; G.assign = {}; G.locks = {};
-    G.size = 9; G.atBat = 0; G.dh = null; G.dhEnd = null;
+    G.order = Array.from({length: slots}, () => null);
+    G.size = slots;
+    G.assign = {}; G.locks = {};
+    G.atBat = 0; G.dh = null; G.dhEnd = null;
     save(); render();
-    toast("Empty card — add slots or Auto-fill");
+    toast(`Card cleared — ${slots} empty slots, tap one to fill it`);
   },
 
   /* ---- batting ---- */
@@ -2809,7 +2818,7 @@ const ACT = {
     const k = UI.fillSlot, id = el.dataset.id;
     closeSheet();
     if(!(k >= 0)) return;
-    snap(); setSlot(k, id); trimSlots();
+    snap(); setSlot(k, id);
     G.size = G.order.length;
     save(); render();
     toast(`${last(P(id)?.name||"He")} batting ${k+1}`);
@@ -2822,7 +2831,6 @@ const ACT = {
     if(!(k >= 0) || k >= G.order.length) return;
     snap();
     G.order.splice(k, 1);
-    trimSlots();
     G.size = G.order.length;
     G.atBat = Math.max(0, nextFilled(G.atBat));
     save(); render();
@@ -2977,7 +2985,6 @@ const ACT = {
     const k = slotOf(id);
     if(k >= 0) setSlot(k, st.batterId);
     else if(!batters().includes(st.batterId)) G.order.push(st.batterId);
-    trimSlots();
     G.size = G.order.length;
     G.atBat = Math.max(0, nextFilled(G.atBat));
     save(); closeSheet(); render();
@@ -3072,7 +3079,6 @@ const ACT = {
     }
     else {
       { const k = slotOf(p.id); if(k >= 0) G.order[k] = null; }
-      trimSlots();
       for(let i=1;i<=G.innings;i++){
         const a=G.assign[i]||{};
         POSK.forEach(c=>{ if(a[c]===p.id){ delete a[c]; delete (G.locks[i]||{})[c]; } });
@@ -3097,7 +3103,7 @@ const ACT = {
     if(!confirm(`Remove ${p.name||"this player"} from the roster?`)) return;
     snap();
     APP.roster = APP.roster.filter(x=>x.id!==p.id);
-    { const k = slotOf(p.id); if(k >= 0) G.order[k] = null; } trimSlots();
+    { const k = slotOf(p.id); if(k >= 0) G.order[k] = null; }
     for(let i=1;i<=G.innings;i++){ const a=G.assign[i]||{};
       POSK.forEach(c=>{ if(a[c]===p.id) delete a[c]; }); }
     save(); renderSettings();
