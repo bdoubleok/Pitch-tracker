@@ -499,6 +499,13 @@
   .pick.r0{border-left:3px solid var(--hit);opacity:.72}
   .pick .nm{flex:1;font-weight:600;font-size:.88rem}
   .pick .meta{font-family:var(--mono);font-size:.62rem;color:var(--ink-faint);text-align:right;line-height:1.35}
+  /* A row whose main action is a button and whose destructive action is a
+     separate one beside it, at a size you can actually aim at. */
+  .pickrow{display:flex;align-items:stretch;gap:8px;margin-bottom:6px}
+  .pickrow .pick{flex:1;min-width:0}
+  .killbtn{flex:none;width:44px;border-radius:var(--r-sm);background:transparent;
+    border:1px solid var(--line);color:var(--ink-faint);font-size:.9rem}
+  .killbtn:active{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
 
   /* ---------- Toast ---------- */
   #toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%) translateY(16px);z-index:60;
@@ -584,7 +591,7 @@
       <div class="stratbar" id="stratBar"></div>
       <div class="faint" id="stratNote" style="font-size:.62rem;margin:7px 2px 10px;line-height:1.5"></div>
       <div class="row">
-        <button class="btn pri wide" data-act="autofill">⚡ Auto-fill</button>
+        <button class="btn pri wide" data-act="autofill" id="fillBtn">⚡ Auto-fill</button>
         <button class="btn wide" data-act="loadlineup" id="loadBtn">📋 Load</button>
         <button class="btn wide" data-act="savelineup">Save</button>
       </div>
@@ -1825,10 +1832,17 @@ function renderLineup(){
   $("setReady").className = "sready" + (posFilled===9 ? " ok" : "");
   /* Emphasis follows the likely next action: with a lineup available and nothing
      set, loading one beats building it by hand, so it leads. */
+  /* Exactly one primary. Two buttons in the same blue is two buttons saying
+     "start here", which is none. With a lineup available and nothing set,
+     loading one is the shorter path, so it takes the emphasis and Auto-fill
+     steps down; once anything is set, Auto-fill leads again. */
   const canLoad = !!lastGameLineup() || APP.saved.length > 0;
+  const loadLeads = canLoad && posFilled === 0 && G.order.length === 0;
+  const fb = $("fillBtn");
+  if(fb) fb.classList.toggle("pri", !loadLeads);
   const lb = $("loadBtn");
   if(lb){
-    lb.classList.toggle("pri", canLoad && posFilled === 0);
+    lb.classList.toggle("pri", loadLeads);
     lb.textContent = canLoad
       ? `📋 Load${APP.saved.length ? ` (${APP.saved.length})` : ""}`
       : "📋 Load";
@@ -2426,13 +2440,19 @@ function openLoadLineup(){
       <span class="meta">${esc(lastG.date||"")}</span>
     </button>`);
 
-  rows.push(...APP.saved.map((L,i)=>`<button class="pick" data-act="loadsaved" data-i="${i}">
-      <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.9rem">📋</span>
-      <span class="nm">${esc(L.name)}
-        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
-          L.order.length} batting · ${esc(nameOf(L.order))}</span></span>
-      <span class="meta"><span data-act="dropsaved" data-i="${i}" style="color:var(--hit);padding:0 4px">✕</span></span>
-    </button>`));
+  /* Delete sits OUTSIDE the load row, as its own 44px button. Nested inside it
+     was an 11px destructive target touching a much larger "load" one — the exact
+     way neighbours steal taps, and with the dangerous action as the small half. */
+  rows.push(...APP.saved.map((L,i)=>`<div class="pickrow">
+      <button class="pick" data-act="loadsaved" data-i="${i}" style="margin:0">
+        <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.9rem">📋</span>
+        <span class="nm">${esc(L.name)}
+          <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+            L.order.length} batting · ${esc(nameOf(L.order))}</span></span>
+      </button>
+      <button class="killbtn" data-act="dropsaved" data-i="${i}"
+        aria-label="Delete the saved lineup ${esc(L.name)}">✕</button>
+    </div>`));
 
   $("sheetTitle").textContent = "LOAD A LINEUP";
   $("sheetBody").innerHTML = (rows.length ? rows.join("") :
