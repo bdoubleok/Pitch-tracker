@@ -598,6 +598,7 @@
         <div class="seclab grow" style="margin:0">LINEUP CARD</div>
         <span class="faint" style="font-size:.58rem" id="cardInn"></span>
       </div>
+      <div class="pickbar" id="cardScope" style="margin-bottom:9px"></div>
       <div class="sizebar" id="sizeBar"></div>
       <div id="orderList" style="margin-top:11px"></div>
       <div id="orderNote"></div>
@@ -841,7 +842,7 @@ function ST(id){ return G.stats[id] || (G.stats[id] = freshStat()); }
 
 let APP = { roster:[], game:null, hist:[] };
 let G;                                  // shorthand for APP.game
-let UI = { tab:"field", dview:"player", tview:"game", sheet:null };
+let UI = { tab:"field", dview:"player", tview:"game", cardAll:true, sheet:null };
 const UNDO = [];
 
 /* ---------------------------------------------------------------------
@@ -1772,9 +1773,25 @@ function renderLineup(){
     + `<button class="${n>=present?"on":""}" data-act="size" data-n="${present}">${present}<span>ALL</span></button>`;
 
   const dh = dhLive();
+  /* Seventeen rows is three and a half screens. Collapsing to the nine who are
+     actually on the field turns the card back into a lineup card for the innings
+     when that is all you need, and the slot numbers stay absolute so row 12 still
+     reads "12" — a renumbered subset would be a different lineup. STARTERS is
+     disabled until somebody is placed, rather than offering an empty list. */
+  const starters = new Set(POSK.map(c=>a1[c]).filter(Boolean));
+  const dhL = dhLive();
+  if(dhL && dhL.mode==="ten") starters.add(dhL.batterId);
+  const canCollapse = starters.size > 0;
+  const showAll = UI.cardAll || !canCollapse;
+  $("cardScope").innerHTML =
+    `<button class="${showAll?"":"on"}" ${canCollapse?`data-act="cardscope" data-v="starters"`:"disabled"}>
+       ON THE FIELD<span>${starters.size}</span></button>
+     <button class="${showAll?"on":""}" data-act="cardscope" data-v="all">WHOLE ORDER<span>${n}</span></button>`;
+
   $("orderList").dataset.sortable = "order";
   $("orderList").innerHTML = n ? G.order.map((id,k)=>{
     const p = P(id); if(!p) return "";
+    if(!showAll && !starters.has(id)) return "";
     const t = timeFor(id), r = roleIn(G.cur, id);
     // His defensive spot this inning — the other half of the lineup card.
     const c = POSK.find(x=>a1[x]===id) || null;
@@ -1816,6 +1833,9 @@ function renderLineup(){
       </div>`).join("") : "";
 
   const notes = [];
+  if(!showAll && n > starters.size)
+    notes.push(`<span style="color:var(--ball)">Showing the ${starters.size} on the field · ${
+      n - starters.size} more in the order.</span> Tap WHOLE ORDER to reorder across everyone.`);
   /* Only worth saying while the nine are still short: once they're filled the
      rest are extra hitters on purpose, and flagging them would be noise. */
   if(posFilled < 9){
@@ -2538,6 +2558,7 @@ const ACT = {
   /* The row is the biggest target on the screen, so it gets the action a coach
      actually repeats mid-game: put the order back in sync with the field. */
   nop(){},
+  cardscope(el){ UI.cardAll = el.dataset.v === "all"; renderLineup(); },
   strat(el){ G.strategy = el.dataset.k; save(); renderLineup();
     toast(strat().label + " — tap Auto-fill to apply"); },
   bppick(el){ openByPlayerPick(el.dataset.id); },
@@ -2962,16 +2983,26 @@ function absoluteTrackerLink(src){
      commit is per-list. Adding a third sortable list is a new entry, not a second
      copy of the drag code. */
   const COMMIT = {
-    order(from, to){
+    /* Works off the ids in the rendered rows, not their position in them, because
+       the card can be showing a SUBSET — collapse-to-starters hides the extra
+       hitters. Dropping row 3 onto row 5 of a filtered list means "put him next
+       to that player in the real order", which is well defined either way;
+       treating the rendered index as the batting slot would silently scramble a
+       filtered lineup. */
+    order(from, to, key, rows){
+      const ids = rows.map(r => r.dataset.id);
+      const moved = ids[from], anchor = ids[to];
+      if(!moved || !anchor) return;
       snap();
       const atBatId = G.order[G.atBat];
-      const [id] = G.order.splice(from, 1);
-      G.order.splice(to, 0, id);
+      G.order.splice(G.order.indexOf(moved), 1);
+      const at = G.order.indexOf(anchor);
+      G.order.splice(from > to ? at : at + 1, 0, moved);
       // The marker follows the player, not the slot number he used to hold.
       const back = G.order.indexOf(atBatId);
       if(back >= 0) G.atBat = back;
       save(); render();
-      toast(`${last(P(id)?.name || "He")} batting ${to + 1}`);
+      toast(`${last(P(moved)?.name || "He")} batting ${G.order.indexOf(moved) + 1}`);
     },
     depth(from, to, c){
       snap();
@@ -2992,7 +3023,7 @@ function absoluteTrackerLink(src){
     row.classList.remove("dragging"); row.style.transform = "";
     rows.forEach(r=>{ r.classList.remove("shift"); r.style.transform = ""; });
     if(to === from) return;
-    (COMMIT[kind] || (()=>{}))(from, to, key);
+    (COMMIT[kind] || (()=>{}))(from, to, key, rows);
   }
   document.addEventListener("pointerup", end);
   document.addEventListener("pointercancel", end);
