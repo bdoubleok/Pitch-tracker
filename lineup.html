@@ -178,6 +178,10 @@
   .cell.blank{color:var(--ink-faint);border-style:dashed}
   .cell.locked::after{content:"";position:absolute;top:2px;right:3px;width:4px;height:4px;border-radius:50%;background:var(--ball)}
   .cell.cur{box-shadow:0 0 0 2px var(--foul)}
+  /* Where a change was actually entered, as against carried forward from the
+     inning before. Deliberately quiet — it marks the seam, it isn't the content. */
+  .cell.chg::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;
+    border-radius:2px;background:var(--ink-faint);opacity:.55}
   td.benchcell{font-family:var(--mono);font-size:.58rem;color:var(--ball);text-align:center;line-height:1.25;
     padding-top:3px;vertical-align:top}
 
@@ -582,7 +586,8 @@
         <div class="faint" style="font-size:.6rem;margin-top:9px;line-height:1.5">
           Tap any cell to assign. <span style="color:var(--strike)">Green</span> = 1st choice there ·
           <span style="color:var(--foul)">Blue</span> = further down the chart · <span style="color:var(--hit)">Red</span> = off it.
-          Amber dot = locked (auto-fill won't touch it).
+          Amber dot = locked (auto-fill won't touch it). A left edge marks where you
+        entered a change — every inning after it carries the same player until you sub again.
         </div>
       </div>
       <div id="byPlayer" hidden></div>
@@ -1030,7 +1035,52 @@ function last(n){ return String(n||"").split(",")[0].trim() || String(n||""); }
 function firstN(n){ const b=String(n||"").split(","); return (b[1]||b[0]||"").trim(); }
 function label(p){ return p ? (last(p.name) + (firstN(p.name)&&last(p.name)!==firstN(p.name) ? ", "+firstN(p.name).charAt(0) : "")) : ""; }
 function here(){ return APP.roster.filter(p=>p.present); }
-function A(inn){ return G.assign[inn] || (G.assign[inn] = {}); }
+/* ---------------------------------------------------------------------
+   The lineup is a set of CHANGE POINTS, not seven independent innings.
+
+   G.assign[inn][c] exists only where somebody was actually put there. Every
+   later inning inherits it until something else is written at that position.
+   So entering nine names once covers the whole game, and a sub in the fourth
+   holds through the seventh — which is how a lineup card has always worked,
+   and why re-entering the defence every inning was never the real task.
+
+   An explicit null means "deliberately nobody", so subbing a spot empty also
+   carries forward instead of quietly re-inheriting the man who was there.
+   --------------------------------------------------------------------- */
+function eff(inn, game){
+  const g = game || G, out = {};
+  for(let i = 1; i <= inn; i++){
+    const layer = g.assign[i]; if(!layer) continue;
+    for(const c of POSK){
+      if(!(c in layer)) continue;
+      if(layer[c] == null) delete out[c]; else out[c] = layer[c];
+    }
+  }
+  return out;
+}
+/* A(inn) is the lineup AS PLAYED in that inning — inheritance resolved. It is a
+   fresh object, so a write to it would change nothing and be lost in silence,
+   which is the one dangerous mistake this model invites. Frozen, so that write
+   throws instead: every mutation has to go through setPos, where the
+   carry-forward rule lives. */
+function A(inn){ return Object.freeze(eff(inn)); }
+function raw(inn){ return G.assign[inn] || (G.assign[inn] = {}); }
+
+/* Putting someone somewhere carries forward: later entries for THIS position
+   are dropped so they inherit the new man, while every other position keeps
+   whatever was planned. Subbing the shortstop must not disturb the rotation. */
+function setPos(inn, c, id){
+  raw(inn)[c] = id || null;
+  for(let i = inn + 1; i <= G.innings; i++){
+    const layer = G.assign[i];
+    if(layer && c in layer) delete layer[c];
+  }
+}
+/* Pull a player off the field from this inning on, wherever he is. */
+function benchFrom(inn, id){
+  const a = A(inn);
+  for(const c of POSK) if(a[c] === id) setPos(inn, c, null);
+}
 function L(inn){ return G.locks[inn]  || (G.locks[inn]  = {}); }
 
 /* =====================================================================
@@ -1124,7 +1174,7 @@ function project(id){
   const s = ST(id), est = estFor(id);
   let proj = s.pitches, planned = 0, ahead = 0;
   for(let i=1;i<=G.innings;i++){
-    if((G.assign[i]||{}).P !== id) continue;
+    if(A(i).P !== id) continue;
     planned++;
     if(i < G.cur) continue;                       // already in s.pitches
     const rest = Math.max(0, est - (s.byInn[i]||0));
@@ -1153,11 +1203,24 @@ function cpCheck(grid){
 /* The grid as it WOULD be if `id` took position `c` in `inn`, swap included.
    Used both to grey out illegal choices in the picker and to refuse the tap. */
 function prospective(inn, c, id){
-  const a = {...(G.assign[inn]||{})};
+  // Resolve inheritance first, then lay the hypothetical change over it, so the
+  // check tests the lineup as it would actually be PLAYED.
+  const a = eff(inn);
   const from = POSK.find(k=>a[k]===id), displaced = a[c];
   if(from){ if(displaced && displaced!==id) a[from] = displaced; else delete a[from]; }
   a[c] = id;
-  return {...G.assign, [inn]: a};
+  // Later innings inherit from this one, so they have to be resolved too.
+  const out = {[inn]: a};
+  for(let i = inn + 1; i <= G.innings; i++){
+    const layer = G.assign[i] || {}, prev = {...out[i-1]};
+    for(const k of POSK){
+      if(!(k in layer)) continue;
+      if(layer[k] == null) delete prev[k]; else prev[k] = layer[k];
+    }
+    out[i] = prev;
+  }
+  for(let i = 1; i < inn; i++) out[i] = eff(i);
+  return out;
 }
 function blockedBy(inn, c, id){ return cpCheck(prospective(inn, c, id))[0] || null; }
 
@@ -1167,7 +1230,7 @@ function blockedBy(inn, c, id){ return cpCheck(prospective(inn, c, id))[0] || nu
 function timeFor(id, game){
   const g = game||G, out = {total:0, byPos:{}};
   for(let i=1;i<=g.innings;i++){
-    const a = g.assign[i]||{};
+    const a = eff(i, g);
     for(const c of POSK) if(a[c]===id){ out.total++; out.byPos[c]=(out.byPos[c]||0)+1; }
   }
   return out;
@@ -1276,7 +1339,7 @@ function dhCheck(){
     const gone = G.dhEnd.out && P(G.dhEnd.out);
     if(gone){
       const still = [];
-      for(let i=G.cur;i<=G.innings;i++) if(POSK.some(k=>(G.assign[i]||{})[k]===gone.id)) still.push(i);
+      for(let i=G.cur;i<=G.innings;i++){ const a=A(i); if(POSK.some(k=>a[k]===gone.id)) still.push(i); }
       if(still.length)
         out.push(`${last(gone.name)} left the game when the role ended, but is still in the field for ${
           still.map(i=>"inning "+i).join(", ")}. Put someone else there.`);
@@ -1290,16 +1353,16 @@ function dhCheck(){
     if(G.order.includes(dh.forId))
       out.push(`${last(def.name)} is being hit for, so he can't also be in the batting order — that ends the DH role.`);
     const fieldsAt = [];
-    for(let i=1;i<=G.innings;i++){ const c = POSK.find(k=>(G.assign[i]||{})[k]===dh.batterId); if(c) fieldsAt.push(i); }
+    for(let i=1;i<=G.innings;i++){ const a=A(i), c = POSK.find(k=>a[k]===dh.batterId); if(c) fieldsAt.push(i); }
     if(fieldsAt.length)
       out.push(`${last(bat.name)} is your DH but is down to play ${fieldsAt.map(i=>"inning "+i).join(", ")}. Taking the field ends the DH role.`);
     let defPlays = false;
-    for(let i=1;i<=G.innings;i++) if(POSK.some(k=>(G.assign[i]||{})[k]===dh.forId)) defPlays = true;
+    for(let i=1;i<=G.innings;i++){ const a=A(i); if(POSK.some(k=>a[k]===dh.forId)) defPlays = true; }
     if(!defPlays)
       out.push(`${last(def.name)} is being hit for but isn't in the field anywhere. A DH has to be hitting for someone who plays.`);
   }else{
     let plays = false;
-    for(let i=1;i<=G.innings;i++) if(POSK.some(k=>(G.assign[i]||{})[k]===dh.batterId)) plays = true;
+    for(let i=1;i<=G.innings;i++){ const a=A(i); if(POSK.some(k=>a[k]===dh.batterId)) plays = true; }
     if(!plays)
       out.push(`${last(bat.name)} is listed as his own DH (P/DH) but isn't in the field. That's fine once he's come out, but he has to start somewhere.`);
     if(!G.order.includes(dh.batterId))
@@ -1419,13 +1482,21 @@ function autofill(){
   // catcher-pitcher check reads the grid, so leaving stale future innings in
   // place would have it testing against a lineup we're about to overwrite.
   for(let i=1;i<=G.innings;i++){
-    const a = A(i), lk = L(i);
+    const was = A(i), lk = L(i), keep = {};
     for(const c of POSK)
-      if(!(lk[c] && a[c] && avail.some(p=>p.id===a[c]))) delete a[c];
+      if(lk[c] && was[c] && avail.some(p=>p.id===was[c])) keep[c] = was[c];
+    // A full snapshot per inning: Auto-fill plans the whole game, so every inning
+    // becomes its own change point. A later manual sub still carries forward from
+    // wherever the coach makes it, because setPos clears that position ahead.
+    G.assign[i] = keep;
   }
 
   for(let i=1;i<=G.innings;i++){
-    const a = A(i), lk = L(i);
+    const a = raw(i), lk = L(i);
+    // Auto-fill writes a complete snapshot per inning, so the previous inning's
+    // raw layer already IS its full lineup — resolved once here rather than per cell.
+    const prevA = i > 1 ? A(i-1) : {};
+    const playedLast = new Set(POSK.map(k=>prevA[k]).filter(Boolean));
     const taken = new Set();
     for(const c of POSK) if(a[c]){ taken.add(a[c]); credit(a[c],c); }   // surviving locks
 
@@ -1458,10 +1529,7 @@ function autofill(){
       // beats silently writing a lineup that breaks the catcher-pitcher rule.
       if(!pool.length) continue;
 
-      const prev = (G.assign[i-1]||{})[c];
-      // ALTERNATE: did he field at all last inning, anywhere?
-      const lastInn = G.assign[i-1] || {};
-      const playedLast = new Set(POSK.map(k=>lastInn[k]).filter(Boolean));
+      const prev = prevA[c];
       const best = pool.map(p=>{
         // One cost function; the strategy supplies the weights. Lowest wins.
         let s = (p.pos[c] || 3) * W.rank;                    // depth on the chart
@@ -1616,12 +1684,16 @@ function renderLineup(){
   let h = `<thead><tr><th></th>${inns.map(i=>`<th>${i}</th>`).join("")}</tr></thead><tbody>`;
   for(const [c,full] of POS){
     h += `<tr><td class="poslab">${c}</td>` + inns.map(i=>{
-      const p = P((G.assign[i]||{})[c]);
+      const p = P(eff(i)[c]);
       const cls = rankCls(c, p);
+      // A scorebook notes WHERE a substitution happened, not just who played. An
+      // inherited cell is the same man carried forward; a change point is a
+      // decision you made, and the one you'd want to undo.
+      const isChange = !!(G.assign[i] && c in G.assign[i]);
       const lock = (G.locks[i]||{})[c] ? "locked" : "";
       const cur  = i===G.cur ? "cur" : "";
       const txt  = p ? (p.num!=="" ? p.num : last(p.name).slice(0,3)) : "·";
-      return `<td><button class="cell ${cls} ${lock} ${cur}" data-act="cell" data-i="${i}" data-c="${c}"
+      return `<td><button class="cell ${cls} ${lock} ${cur} ${isChange?"chg":""}" data-act="cell" data-i="${i}" data-c="${c}"
         title="${esc(full)}">${esc(txt)}</button></td>`;
     }).join("") + `</tr>`;
   }
@@ -1769,9 +1841,11 @@ function renderArms(){ renderArmWarn(); renderPlan(); renderProj(); renderAvail(
   $("setEst").value = G.est; }
 
 function renderArmWarn(){
-  const probs = cpCheck(G.assign);
+  const resolved = {};
+  for(let i=1;i<=G.innings;i++) resolved[i] = A(i);
+  const probs = cpCheck(resolved);
   for(let i=1;i<=G.innings;i++)
-    if(!(G.assign[i]||{}).P) probs.push(`Inning ${i} has no pitcher assigned.`);
+    if(!A(i).P) probs.push(`Inning ${i} has no pitcher assigned.`);
   APP.roster.forEach(p=>{
     const pr = project(p.id);
     if(!pr.planned) return;
@@ -1791,7 +1865,7 @@ function renderArmWarn(){
 function renderPlan(){
   const cum = {};
   $("planList").innerHTML = Array.from({length:G.innings},(_,k)=>k+1).map(i=>{
-    const id = (G.assign[i]||{}).P, p = P(id);
+    const id = A(i).P, p = P(id);
     if(!p) return `<button class="planrow" data-act="planpick" data-i="${i}">
         <span class="inn">${i}</span><span class="who none">— tap to assign —</span></button>`;
     const s = ST(id);
@@ -1814,7 +1888,7 @@ function renderProj(){
     const state = pr.proj > DAILY_MAX ? "over" : pr.proj > G.limit ? "warn" : "";
     const pct = Math.min(100, 100*pr.proj/G.limit);
     const innList = [];
-    for(let i=1;i<=G.innings;i++) if((G.assign[i]||{}).P===p.id) innList.push(i);
+    for(let i=1;i<=G.innings;i++) if(A(i).P===p.id) innList.push(i);
     return `<div class="armcard ${state}">
       <div class="top">
         <span class="nm">${esc(last(p.name))}</span>
@@ -2344,10 +2418,12 @@ const ACT = {
     if(bad){ toast(bad.split(" — ")[0] + " — blocked"); return; }
     snap();
     const a = A(inn), from = POSK.find(k=>a[k]===id), displaced = a[c];
-    if(from){ if(displaced && displaced!==id) a[from]=displaced; else delete a[from]; }
-    a[c] = id;
+    // A trade when he was already on the field, so the other man takes the spot
+    // just vacated rather than being dropped.
+    if(from){ if(displaced && displaced!==id) setPos(inn, from, displaced); else setPos(inn, from, null); }
+    setPos(inn, c, id);
     L(inn)[c] = true;
-    if(from && a[from]) L(inn)[from] = true;
+    if(from && A(inn)[from]) L(inn)[from] = true;
     // NFHS 3-1-4: a ten-player DH who takes a defensive position ends the role.
     // A P/DH is already a fielder, so this never applies to him.
     const dh = dhLive();
@@ -2368,8 +2444,8 @@ const ACT = {
     snap();
     const a = A(G.cur);
     const outgoing = a[c] && a[c] !== id ? P(a[c]) : null;
-    for(const k of POSK) if(a[k]===id) delete a[k];    // he can only be in one place
-    a[c] = id;
+    benchFrom(G.cur, id);                              // he can only be in one place
+    setPos(G.cur, c, id);
     save(); render();
     toast(outgoing ? `${last(P(id).name)} to ${c} — ${last(outgoing.name)} to the bench`
                    : `${last(P(id).name)} to ${c}`);
@@ -2378,7 +2454,9 @@ const ACT = {
     UI.sheetAll = el.dataset.v === "all";
     const {inn, c} = UI.sheet; openCell(inn, c);
   },
-  clearcell(){ const {inn,c}=UI.sheet; snap(); delete A(inn)[c]; delete L(inn)[c];
+  /* Clearing a spot is a sub-out, so it carries forward like any other change
+     rather than letting the next inning re-inherit the man just removed. */
+  clearcell(){ const {inn,c}=UI.sheet; snap(); setPos(inn, c, null); delete L(inn)[c];
     save(); closeSheet(); render(); },
   locktoggle(){ const {inn,c}=UI.sheet; const lk=L(inn);
     if(lk[c]) delete lk[c]; else lk[c]=true; save(); openCell(inn,c); renderLineup(); },
@@ -2474,11 +2552,10 @@ const ACT = {
     const other = a[c] && a[c] !== id ? a[c] : null;  // who holds the spot he wants
     if(from === c) return;                            // already there
 
-    if(from) delete a[from];
-    a[c] = id;
+    setPos(G.cur, c, id);
     // He came off the field, so there is a spot to hand back — a real trade. If he
     // came off the bench there is nowhere to put the other man, and he is benched.
-    if(other && from) a[from] = other;
+    if(from) setPos(G.cur, from, other && from ? other : null);
 
     save(); render();
     toast(other ? (from ? `${last(P(id).name)} ⇄ ${last(P(other).name)}`
@@ -2490,10 +2567,9 @@ const ACT = {
     closeSheet();
     if(!id) return;
     snap();
-    const a = A(G.cur);
-    for(const k of POSK) if(a[k]===id) delete a[k];
+    benchFrom(G.cur, id);
     save(); render();
-    toast(`${last(P(id)?.name||"He")} off the field this inning`);
+    toast(`${last(P(id)?.name||"He")} off the field from inning ${G.cur} on`);
   },
   movepick(el){ openMovePick(el.dataset.id); },
   moveto(el){
