@@ -59,12 +59,16 @@
      rules, same position. Crossing between the pages should feel like changing
      tabs, not like landing on a different site. */
   .appnav{display:flex;gap:6px;margin-bottom:9px}
-  .appnav a{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+  /* Styled on the child regardless of element, because the page you're already
+     on is a <span>, not an <a>: linking to where you already are is noise for a
+     screen reader, and in a "Save as HTML" copy — which travels alone, under a
+     different filename — it would be a link that goes nowhere. */
+  .appnav > *{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
     padding:6px 0;border-radius:8px;background:var(--navy-850);border:1px solid var(--line);
     color:var(--ink-faint);text-decoration:none;font-family:var(--mono);font-weight:700;
     font-size:.62rem;letter-spacing:1.4px}
-  .appnav a .ic{font-size:.9rem;letter-spacing:0}
-  .appnav a.on{background:var(--navy-700);border-color:var(--strike-d);color:var(--strike)}
+  .appnav .ic{font-size:.9rem;letter-spacing:0}
+  .appnav .on{background:var(--navy-700);border-color:var(--strike-d);color:var(--strike)}
   select{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 9px;font-size:.9rem}
 
   .pitcherbar{display:flex;align-items:center;gap:10px;margin-top:9px}
@@ -274,7 +278,7 @@
 
 <header>
   <nav class="appnav">
-    <a href="index.html" class="on" aria-current="page"><span class="ic">⚾</span>TRACKER</a>
+    <span class="on" aria-current="page"><span class="ic">⚾</span>TRACKER</span>
     <a href="lineup.html"><span class="ic">▦</span>LINEUP</a>
   </nav>
   <div class="hrow">

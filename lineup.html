@@ -63,7 +63,11 @@
     backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:9px var(--pad)}
   .hrow{display:flex;align-items:center;gap:9px}
   .badge{font-family:var(--mono);font-weight:700;font-size:.68rem;letter-spacing:1.4px;color:var(--strike);
-    border:1px solid var(--strike-d);border-radius:6px;padding:3px 7px;white-space:nowrap}
+    border:1px solid var(--strike-d);border-radius:6px;padding:3px 7px;white-space:nowrap;
+    /* Sized to hold a shortened name like "NOVA Orange 17U" even on a 320px
+       phone. The opponent field beside it shrinks instead — it's a text input,
+       it survives being narrow; a clipped team name loses the age group. */
+    max-width:50%;overflow:hidden;text-overflow:ellipsis}
   .hrow input, .hrow select{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);
     border-radius:8px;padding:7px 9px;font-size:.9rem;min-width:0}
   #opp{flex:1}
@@ -74,12 +78,16 @@
      rules, same position. Crossing between the pages should feel like changing
      tabs, not like landing on a different site. */
   .appnav{display:flex;gap:6px;margin-bottom:9px}
-  .appnav a{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+  /* Styled on the child regardless of element, because the page you're already
+     on is a <span>, not an <a>: linking to where you already are is noise for a
+     screen reader, and in a "Save as HTML" copy — which travels alone, under a
+     different filename — it would be a link that goes nowhere. */
+  .appnav > *{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
     padding:6px 0;border-radius:8px;background:var(--navy-850);border:1px solid var(--line);
     color:var(--ink-faint);text-decoration:none;font-family:var(--mono);font-weight:700;
     font-size:.62rem;letter-spacing:1.4px}
-  .appnav a .ic{font-size:.9rem;letter-spacing:0}
-  .appnav a.on{background:var(--navy-700);border-color:var(--strike-d);color:var(--strike)}
+  .appnav .ic{font-size:.9rem;letter-spacing:0}
+  .appnav .on{background:var(--navy-700);border-color:var(--strike-d);color:var(--strike)}
   .iconbtn{width:38px;height:36px;border-radius:8px;background:var(--navy-850);border:1px solid var(--line);
     display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex:0 0 auto}
 
@@ -350,10 +358,10 @@
 <header>
   <nav class="appnav">
     <a href="index.html"><span class="ic">⚾</span>TRACKER</a>
-    <a href="lineup.html" class="on" aria-current="page"><span class="ic">▦</span>LINEUP</a>
+    <span class="on" aria-current="page"><span class="ic">▦</span>LINEUP</span>
   </nav>
   <div class="hrow">
-    <span class="badge">NOVA 14U</span>
+    <span class="badge" id="teamBadge">NOVA 14U</span>
     <input id="opp" placeholder="Opponent">
     <button class="iconbtn" data-act="tab" data-tab="set">⚙</button>
   </div>
@@ -639,13 +647,96 @@ let G;                                  // shorthand for APP.game
 let UI = { tab:"field", dview:"player", tview:"game", sheet:null };
 const UNDO = [];
 
-/* ---------- persistence: one localStorage key, whole app ---------- */
+/* ---------------------------------------------------------------------
+   Bridge to the Pitch Tracker
+
+   Both pages are served from the same origin, so they see the same
+   localStorage. The tracker owns the team list — it has the dropdown — and
+   this page follows whichever team is active there. Two pages that disagree
+   about who you're coaching is worse than no link between them at all.
+
+   Each team gets its own lineup, keyed by the tracker's team id, so the
+   depth chart you build for the 14U squad doesn't follow you to the 17U
+   one. Opened without a tracker alongside it (a "Save as HTML" copy on a
+   phone, offline), there's no team to follow: TEAM stays null and this page
+   behaves exactly as it did before — one lineup under the original key.
+   --------------------------------------------------------------------- */
+const BASE_KEY = "nova_lineup_v1";
+const TRACKER_KEY = "npt_app_v2";
+let TEAM = null;
+
+function trackerTeam(){
+  try{
+    const o = JSON.parse(localStorage.getItem(TRACKER_KEY));
+    const t = o && o.teams && o.teams[o.active || 0];
+    if(!t || !t.id) return null;
+    return { id: t.id, name: t.name || "",
+             roster: ((t.game && t.game.pitchers) || []).map(p=>({num:p.num, name:p.name})) };
+  }catch(e){ return null; }
+}
+function trackerTeams(){
+  try{
+    const o = JSON.parse(localStorage.getItem(TRACKER_KEY));
+    return ((o && o.teams) || []).filter(t=>t && t.id).map(t=>({
+      id: t.id, name: t.name || "",
+      roster: ((t.game && t.game.pitchers) || []).map(p=>({num:p.num, name:p.name}))
+    }));
+  }catch(e){ return []; }
+}
+function storeKey(){ return TEAM ? BASE_KEY + ":" + TEAM.id : BASE_KEY; }
+
+/* One-time handoff. Before this page followed the tracker, it kept a single
+   lineup under the bare key — that's real work (a depth chart, a season of
+   stats) and it has to land on the right team. Match by roster rather than
+   just handing it to whichever team happens to be active, because "active" is
+   only whatever the coach last tapped in the tracker. If nothing matches well
+   enough, the old save stays put rather than being filed under a guess. */
+function adoptLegacySave(teams){
+  const legacy = localStorage.getItem(BASE_KEY);
+  if(!legacy || !teams.length) return;
+  let names;
+  try{
+    const d = JSON.parse(legacy);
+    names = new Set((d.roster||[]).map(p=>String(p.name||"").trim().toLowerCase()).filter(Boolean));
+  }catch(e){ return; }
+  if(!names.size) return;
+  let best = null, bestHits = 0;
+  for(const t of teams){
+    const hits = t.roster.filter(p=>names.has(String(p.name||"").trim().toLowerCase())).length;
+    if(hits > bestHits){ best = t; bestHits = hits; }
+  }
+  if(!best || bestHits * 2 < names.size) return;      // needs a real majority
+  if(localStorage.getItem(BASE_KEY + ":" + best.id)) return;  // that team already has one
+  try{
+    localStorage.setItem(BASE_KEY + ":" + best.id, legacy);
+    localStorage.removeItem(BASE_KEY);
+  }catch(e){}
+}
+
+/* The badge fits about two words, and what identifies a team is the TAIL —
+   "14U" against "Orange 17U". Clipping the end with CSS would render every
+   team as "NOVA Premier…", so drop words out of the middle instead and keep
+   the club and the age group. "NOVA Premier 14U" lands back on "NOVA 14U",
+   which is what this badge was hand-written as before it went live. */
+function shortTeam(name){
+  const w = String(name).trim().split(/\s+/);
+  if(w.length <= 2) return w.join(" ");
+  return w[0] + " " + w.slice(w.length >= 4 ? -2 : -1).join(" ");
+}
+function renderTeamBadge(){
+  const el = $("teamBadge");
+  if(!el || !TEAM || !TEAM.name) return;
+  el.textContent = shortTeam(TEAM.name);
+  el.title = TEAM.name;          // the full name is one long-press away
+}
+
+/* ---------- persistence: one localStorage key per team ---------- */
 function save(){
-  try{ localStorage.setItem("nova_lineup_v1", JSON.stringify(APP)); }catch(e){}
+  try{ localStorage.setItem(storeKey(), JSON.stringify(APP)); }catch(e){}
 }
 function load(){
   try{
-    const j = localStorage.getItem("nova_lineup_v1");
+    const j = localStorage.getItem(storeKey());
     if(!j) return false;
     const d = JSON.parse(j);
     if(!d || !d.roster) return false;
@@ -1880,7 +1971,7 @@ const ACT = {
       // Test for the marker rather than comparing before/after: re-exporting an
       // unchanged roster produces an identical file, which is success, not failure.
       if(!re.test(src)){ toast("Save error — marker not found"); return; }
-      const out = src.replace(re, seed);
+      const out = absoluteTrackerLink(src.replace(re, seed));
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([out],{type:"text/html"}));
       a.download = "nova-lineup.html"; a.click();
@@ -1927,6 +2018,27 @@ function pageSource(){
   return fetch(location.href).then(r=>r.text()).catch(()=>snapshotDOM());
 }
 
+/* The saved copy travels alone — it lands in Downloads or the Files app with
+   no index.html beside it, so the app switcher's relative link to the tracker
+   would dead-end. Exporting from the web, we know where the real tracker
+   lives, so point the saved copy back at it: offline it's just a link that
+   needs signal, and with signal it opens the actual tracker.
+
+   Exported from a file:// copy there's no origin worth baking in, so the
+   markup is left exactly as it is — which is right in the one case where a
+   relative link still works: both files sitting in the same folder.
+
+   `replace` takes the FIRST match, which is the header markup near the top of
+   the document — this function's own source, pattern included, sits far below
+   it in the same file. Same hazard the SEED marker above is assembled to
+   dodge, resolved here by document order. */
+function absoluteTrackerLink(src){
+  if(!/^https?:$/.test(location.protocol)) return src;
+  let abs;
+  try{ abs = new URL("index.html", location.href).href; }catch(e){ return src; }
+  return src.replace(/<a href="index\.html"/, '<a href="' + abs + '"');
+}
+
 /* =====================================================================
    EVENT WIRING
    One click listener for the whole app (delegation), one input listener
@@ -1968,17 +2080,28 @@ document.addEventListener("input", e=>{
 
 /* =====================================================================
    BOOT
-   Order of preference: this device's saved state → a roster baked into
-   the file by "Save as HTML" → the roster carried over from the Pitch
-   Tracker.
+   First settle which team we're on — the tracker decides, when it's there —
+   because that picks the storage key everything else reads and writes.
+
+   Then, for the roster: this team's saved lineup → a roster baked into the
+   file by "Save as HTML" → the tracker's roster for this team → the roster
+   compiled into this file.
    ===================================================================== */
 /*SEED*/var SEED_SAVED = null;/*ENDSEED*/
 
 (function boot(){
+  const teams = trackerTeams();
+  adoptLegacySave(teams);
+  TEAM = trackerTeam();
+  renderTeamBadge();
+
   if(!load()){
-    APP.roster = SEED_SAVED
-      ? SEED_SAVED.roster.map(p=>Object.assign(freshPlayer(p), p, {present:true}))
-      : SEED_ROSTER.map(freshPlayer);
+    const carried = SEED_SAVED ? SEED_SAVED.roster
+                  : (TEAM && TEAM.roster.length) ? TEAM.roster
+                  : SEED_ROSTER;
+    // A baked-in save carries depth-chart ranks with each player; a roster
+    // from the tracker is just names and numbers, so it starts from defaults.
+    APP.roster = carried.map(p=>Object.assign(freshPlayer(p), p, {present:true}));
     APP.game = freshGame(APP.roster);
     APP.hist = [];
     save();
