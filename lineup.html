@@ -1288,7 +1288,11 @@ function roleIn(inn, id){
   if(c) return c;
   const dh = dhLive();
   if(dh && dh.mode==="ten" && id===dh.batterId) return "DH";
-  return G.order.includes(id) ? EH_LABEL : "—";
+  /* Not fielding is only "extra hitter" once there are nine fielders. Short of
+     that he is simply unplaced, and saying EH would report a decision nobody
+     has made — the same false signal as calling an unbuilt chart "off chart". */
+  if(!G.order.includes(id)) return "—";
+  return POSK.filter(k=>a[k]).length === 9 ? EH_LABEL : "—";
 }
 function benchFor(inn){
   const a = A(inn), on = new Set(POSK.map(c=>a[c]).filter(Boolean));
@@ -1812,9 +1816,15 @@ function renderLineup(){
       </div>`).join("") : "";
 
   const notes = [];
-  const unassigned = G.order.filter(id=>!POSK.some(c=>a1[c]===id) && roleIn(G.cur,id)==="—").length;
-  if(unassigned) notes.push(`<span style="color:var(--ball)">${unassigned} batter${unassigned===1?"":"s"} with no position — tap the — to place them, or extra hitters if that's intended.</span>`);
-  if(n > 9) notes.push(`Badges show this inning's role. ${n-9} ${EH_LABEL} bat${n-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
+  /* Only worth saying while the nine are still short: once they're filled the
+     rest are extra hitters on purpose, and flagging them would be noise. */
+  if(posFilled < 9){
+    const need = 9 - posFilled;
+    notes.push(`<span style="color:var(--ball)">${need} more position${need===1?"":"s"} to fill (${
+      POSK.filter(c=>!a1[c]).join(", ")}) — tap a <b>—</b> to place someone, or use Auto-fill.</span>`);
+  }
+  if(n > 9 && posFilled === 9)
+    notes.push(`Badges show this inning's role. ${n-9} ${EH_LABEL} bat${n-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
   if(dh && dh.mode==="ten") notes.push(`${esc(last(P(dh.forId)?.name||""))} fields but doesn't bat — the DH holds his slot.`);
   notes.push(`Drag the handle to reorder the batting order · tap the <b>number</b> to move or remove him · tap the <b>position</b> to set where he fields · ↺ undoes any of it.`);
   $("orderNote").innerHTML = `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>`;
