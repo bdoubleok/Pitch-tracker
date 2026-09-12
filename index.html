@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>NOVA Premier 13U — Live Pitch Tracker</title>
+<title>NOVA Premier 14U — Live Pitch Tracker</title>
 <style>
   /* ---------- Design tokens (the "variables" layer, like Figma styles) ---------- */
   :root{
@@ -52,6 +52,23 @@
   .hrow input{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);border-radius:8px;
     padding:7px 9px;font-size:.9rem;min-width:0}
   #opp{flex:1}
+
+  /* ---------- App switcher ----------
+     The tracker and the lineup manager are one product in two pages, so this
+     strip is byte-identical in index.html and lineup.html: same markup, same
+     rules, same position. Crossing between the pages should feel like changing
+     tabs, not like landing on a different site. */
+  .appnav{display:flex;gap:6px;margin-bottom:9px}
+  /* Styled on the child regardless of element, because the page you're already
+     on is a <span>, not an <a>: linking to where you already are is noise for a
+     screen reader, and in a "Save as HTML" copy — which travels alone, under a
+     different filename — it would be a link that goes nowhere. */
+  .appnav > *{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+    padding:6px 0;border-radius:8px;background:var(--navy-850);border:1px solid var(--line);
+    color:var(--ink-faint);text-decoration:none;font-family:var(--mono);font-weight:700;
+    font-size:.62rem;letter-spacing:1.4px}
+  .appnav .ic{font-size:.9rem;letter-spacing:0}
+  .appnav .on{background:var(--navy-700);border-color:var(--strike-d);color:var(--strike)}
   select{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 9px;font-size:.9rem}
 
   .pitcherbar{display:flex;align-items:center;gap:10px;margin-top:9px}
@@ -260,6 +277,10 @@
 <body>
 
 <header>
+  <nav class="appnav">
+    <span class="on" aria-current="page"><span class="ic">⚾</span>TRACKER</span>
+    <a href="lineup.html"><span class="ic">▦</span>LINEUP</a>
+  </nav>
   <div class="hrow">
     <select id="team" class="teamsel"></select>
     <input id="opp" placeholder="Opponent…" />
@@ -509,13 +530,19 @@
    data flow — the same mental model as React, just in plain JS.
    ===================================================================== */
 
-// NOVA Premier 13U roster (from your spring CSV)
+// NOVA Premier 14U roster (from your spring CSV, when this group was 13U)
 const ROSTER = [
+  // The nine who carried over from the spring, in the order they were in.
   {num:12,name:"Comottor, Jon"}, {num:5,name:"Kingsland, Gavin"},
   {num:11,name:"Kupets, Ethan"}, {num:3,name:"Cook, Max"},
   {num:13,name:"Edwards, Vinny"}, {num:31,name:"Hayes, Ryan"},
   {num:9,name:"Walowac, Zach"}, {num:1,name:"Leach, Troy"},
-  {num:6,name:"Larson, Christopher"}
+  {num:6,name:"Larson, Christopher"},
+  // Eight added for the fall, alphabetical. Seventeen is the whole roster.
+  {num:2,name:"Crabb, Ryan"},     {num:44,name:"Jennings, Ethan"},
+  {num:33,name:"Kang, Kyle"},     {num:25,name:"Kim, Eddie"},
+  {num:23,name:"Rachman, Benjamin"}, {num:27,name:"Robinson, Tyler"},
+  {num:37,name:"Rohrbach, Charlie"}, {num:34,name:"Whitacre, Hunter"}
 ];
 // NOVA Premier Orange 17U roster (from your summer CSV; some entries lacked a last name / number in GameChanger)
 const ROSTER_17U = [
@@ -594,12 +621,43 @@ function persist(){
     active:APP.active, teams:APP.teams.map(t=>({id:t.id,name:t.name,game:t.game,tourn:t.tourn})) // hist is session-only
   })); }catch(_){}
 }
+/* The spring 13U team is this same group of kids, a season older. Devices that
+   used the tracker last season still have "NOVA Premier 13U" in localStorage,
+   so rename it on load — otherwise the seed says 14U and the saved copy says
+   13U, and the app contradicts itself depending on whose phone you're on. */
+const ageUp = n => n === "NOVA Premier 13U" ? "NOVA Premier 14U" : n;
+
+/* Players join mid-season, but the seed above only runs on a device that has
+   never opened this app. Every phone that used it in the spring is carrying a
+   nine-player roster in localStorage and would never see the eight who joined
+   for the fall. So reconcile on load: anyone in the compiled roster who isn't
+   on the saved team gets appended. Matching is by name, nobody is ever removed,
+   and no existing stat line is touched — a returning player keeps his season.
+   Only the team this roster belongs to is touched; the 17U squad is its own. */
+const normName = s => String(s||"").trim().toLowerCase().replace(/\s+/g," ");
+function mergeRoster(team, roster){
+  if(!team || !team.game) return 0;
+  const list = team.game.pitchers || (team.game.pitchers = []);
+  const have = new Set(list.map(p=>normName(p.name)));
+  let added = 0;
+  (roster||[]).forEach(p=>{
+    if(have.has(normName(p.name))) return;
+    list.push(freshPitcher(p)); have.add(normName(p.name)); added++;
+  });
+  return added;
+}
 function loadApp(){
   try{
     const j=localStorage.getItem("npt_app_v2");
     if(j){ const o=JSON.parse(j);
-      APP={ active:o.active||0, teams:(o.teams||[]).map(t=>({id:t.id||uid(),name:t.name,game:normalizeGame(t.game),tourn:normalizeTourn(t.tourn),hist:[]})) };
-      if(APP.teams.length) return true;
+      APP={ active:o.active||0, teams:(o.teams||[]).map(t=>({id:t.id||uid(),name:ageUp(t.name),game:normalizeGame(t.game),tourn:normalizeTourn(t.tourn),hist:[]})) };
+      if(APP.teams.length){
+        APP.teams.forEach(t=>{
+          if(t.name === "NOVA Premier 14U") mergeRoster(t, ROSTER);
+          else if(t.name === "NOVA Premier Orange 17U") mergeRoster(t, ROSTER_17U);
+        });
+        return true;
+      }
     }
   }catch(_){}
   return false;
@@ -1222,7 +1280,7 @@ try{
   // Load saved teams from this device, or seed: NOVA (from your CSV) + an empty 2nd team.
   /*SEED*/if(!loadApp()){
     APP = { active:0, teams:[
-      freshTeam("NOVA Premier 13U", ROSTER),
+      freshTeam("NOVA Premier 14U", ROSTER),
       freshTeam("NOVA Premier Orange 17U", ROSTER_17U)
     ] };
   }/*ENDSEED*/

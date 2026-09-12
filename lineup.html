@@ -63,10 +63,31 @@
     backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:9px var(--pad)}
   .hrow{display:flex;align-items:center;gap:9px}
   .badge{font-family:var(--mono);font-weight:700;font-size:.68rem;letter-spacing:1.4px;color:var(--strike);
-    border:1px solid var(--strike-d);border-radius:6px;padding:3px 7px;white-space:nowrap}
+    border:1px solid var(--strike-d);border-radius:6px;padding:3px 7px;white-space:nowrap;
+    /* Sized to hold a shortened name like "NOVA Orange 17U" even on a 320px
+       phone. The opponent field beside it shrinks instead — it's a text input,
+       it survives being narrow; a clipped team name loses the age group. */
+    max-width:50%;overflow:hidden;text-overflow:ellipsis}
   .hrow input, .hrow select{background:var(--navy-850);border:1px solid var(--line);color:var(--ink);
     border-radius:8px;padding:7px 9px;font-size:.9rem;min-width:0}
   #opp{flex:1}
+
+  /* ---------- App switcher ----------
+     The tracker and the lineup manager are one product in two pages, so this
+     strip is byte-identical in index.html and lineup.html: same markup, same
+     rules, same position. Crossing between the pages should feel like changing
+     tabs, not like landing on a different site. */
+  .appnav{display:flex;gap:6px;margin-bottom:9px}
+  /* Styled on the child regardless of element, because the page you're already
+     on is a <span>, not an <a>: linking to where you already are is noise for a
+     screen reader, and in a "Save as HTML" copy — which travels alone, under a
+     different filename — it would be a link that goes nowhere. */
+  .appnav > *{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+    padding:6px 0;border-radius:8px;background:var(--navy-850);border:1px solid var(--line);
+    color:var(--ink-faint);text-decoration:none;font-family:var(--mono);font-weight:700;
+    font-size:.62rem;letter-spacing:1.4px}
+  .appnav .ic{font-size:.9rem;letter-spacing:0}
+  .appnav .on{background:var(--navy-700);border-color:var(--strike-d);color:var(--strike)}
   .iconbtn{width:38px;height:36px;border-radius:8px;background:var(--navy-850);border:1px solid var(--line);
     display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex:0 0 auto}
 
@@ -106,13 +127,14 @@
   .slot:active{transform:translate(-50%,-50%) scale(.96)}
   .slot .p{font-size:.5rem;letter-spacing:1px;color:var(--strike);font-weight:800;font-family:var(--mono)}
   .slot .n{font-size:.68rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78px}
-  .slot .num{font-family:var(--mono);color:var(--ink-dim);font-size:.6rem}
+  .slot .num{font-family:var(--mono);font-size:.52rem;color:var(--ink-faint);white-space:nowrap;letter-spacing:-.2px}
   .slot.empty{border-style:dashed;border-color:var(--ink-faint)}
   .slot.empty .n{color:var(--ink-faint)}
   .slot.pitcher{border-color:var(--strike-d);box-shadow:0 0 0 1px rgba(61,220,132,.3)}
 
   .benchstrip{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
   .bchip{font-size:.7rem;font-family:var(--mono);background:var(--navy-850);border:1px solid var(--ball-d);
+    min-height:38px;
     color:var(--ball);border-radius:20px;padding:4px 10px;font-weight:700}
 
   /* at-bat panel */
@@ -156,18 +178,74 @@
   .cell.blank{color:var(--ink-faint);border-style:dashed}
   .cell.locked::after{content:"";position:absolute;top:2px;right:3px;width:4px;height:4px;border-radius:50%;background:var(--ball)}
   .cell.cur{box-shadow:0 0 0 2px var(--foul)}
+  /* Where a change was actually entered, as against carried forward from the
+     inning before. Deliberately quiet — it marks the seam, it isn't the content. */
+  .cell.chg::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;
+    border-radius:2px;background:var(--ink-faint);opacity:.55}
   td.benchcell{font-family:var(--mono);font-size:.58rem;color:var(--ball);text-align:center;line-height:1.25;
     padding-top:3px;vertical-align:top}
 
   /* batting order list */
-  .ord{display:flex;align-items:center;gap:6px;background:var(--navy-850);border:1px solid var(--line);
-    border-radius:var(--r-sm);padding:7px 8px;margin-bottom:6px}
-  .ord .slotno{font-family:var(--mono);font-weight:800;color:var(--ink-faint);width:14px;text-align:center;font-size:.85rem}
+  /* Apple asks for 44pt of tappable area and Material for 48dp, with 8px between
+     neighbours. The old row ran three 27px buttons at 6px apart — roughly a third
+     of the recommended area each — which is most of why moving anyone was a
+     fight. Every control here now clears 44px, and the row is 56px so the whole
+     thing is comfortable to hit while scrolling a seventeen-deep list. */
+  .ord{display:flex;align-items:center;gap:8px;background:var(--navy-850);border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:0 6px 0 0;margin-bottom:8px;min-height:56px;position:relative;
+    touch-action:pan-y}
+  /* The slot number is the shortcut for a long move. Dragging 17th to 1st means
+     holding through an auto-scroll across more than a screen; picking the number
+     is two taps at any distance. Drag stays for nudges, which is what it's good
+     at — the two cover different jobs rather than competing. */
+  .ord .slotno{flex:none;width:30px;height:44px;border:0;background:transparent;font-family:var(--mono);
+    font-weight:800;color:var(--ink-faint);text-align:center;font-size:.85rem;
+    display:flex;align-items:center;justify-content:center;border-radius:8px}
+  .ord .slotno:active{background:var(--navy-800);color:var(--foul)}
+  /* The move-to grid inside the sheet. */
+  .slotgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .slotgrid button{height:52px;border-radius:10px;background:var(--navy-850);border:1px solid var(--line);
+    font-family:var(--mono);font-weight:800;font-size:.95rem;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+  .slotgrid button span{font-size:.46rem;letter-spacing:.5px;color:var(--ink-faint);font-weight:700}
+  .slotgrid button.now{border-color:var(--foul);background:var(--foul-d);color:#fff}
+  .slotgrid button.now span{color:#cfe0ff}
   /* min-width:0 lets the name actually shrink inside the flex row; without it a
      flex item refuses to go below its content width and pushes the buttons off. */
-  .ord .nm{flex:1;min-width:0;font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ord .mini{flex:none;width:27px;height:29px;border-radius:7px;background:var(--navy-800);border:1px solid var(--line);
-    display:flex;align-items:center;justify-content:center;font-size:.78rem;color:var(--ink-dim)}
+  /* The controls now take 118px of fixed width between them, which left the name
+     competing for what was over — and losing, as "H. Whitac…". Its badge and
+     line score move under it instead, so the name keeps the full remaining
+     width and the row still reads in one glance. */
+  .ord .nm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;justify-content:center}
+  .ord .nm b{font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ord .nm .sub{display:flex;align-items:center;gap:6px;font-size:.6rem}
+
+  /* The handle is the ONLY draggable surface. Dragging the whole row would make
+     every attempt to scroll a seventeen-row list start a reorder instead —
+     touch-action:none here and pan-y on the row keeps the two gestures apart. */
+  .grip{flex:none;width:44px;align-self:stretch;border:0;background:transparent;border-radius:var(--r-sm) 0 0 var(--r-sm);
+    display:flex;align-items:center;justify-content:center;color:var(--ink-faint);
+    touch-action:none;cursor:grab}
+  .grip:active{cursor:grabbing;background:rgba(91,141,239,.14);color:var(--foul)}
+  .grip svg{pointer-events:none}
+  .ord .drop{flex:none;width:44px;height:44px;border-radius:9px;background:var(--navy-800);
+    border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+    font-size:1.05rem;line-height:1;color:var(--ink-dim)}
+  .ord .drop:active{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
+
+  /* While a row is being dragged it follows the finger; the rest shuffle to show
+     where it would land, so the result is visible before you let go. */
+  [data-sortrow].dragging{opacity:.92;z-index:30;box-shadow:0 10px 24px rgba(0,0,0,.5);border-color:var(--foul)}
+  [data-sortrow].shift{transition:transform .16s ease}
+
+  /* The bench: present players not in the order. One tap puts them in. */
+  .benchrow{display:flex;align-items:center;gap:8px;background:transparent;border:1px dashed var(--line);
+    border-radius:var(--r-sm);padding:0 6px 0 12px;margin-bottom:7px;min-height:52px}
+  .benchrow .nm{flex:1;min-width:0;font-weight:600;font-size:.86rem;color:var(--ink-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .benchrow .add{flex:none;height:44px;padding:0 14px;border-radius:9px;background:var(--foul-d);
+    border:1px solid #5b8def;color:#fff;font-weight:800;font-size:.78rem;letter-spacing:.4px}
+  .benchrow .add:active{background:var(--foul)}
   .ord.atbat{border-color:var(--strike);background:#0e2a1d}
 
   /* ---------- lineup size + DH ---------- */
@@ -211,12 +289,106 @@
   .toggle.out{background:var(--hit-d);border-color:#b83340;color:#ffd2d6}
 
   /* by-position depth view */
-  .dpos{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px;margin-bottom:7px}
-  .dpos .h{font-family:var(--mono);font-size:.7rem;font-weight:800;color:var(--strike);letter-spacing:1px;margin-bottom:6px}
-  .dlist{display:flex;flex-wrap:wrap;gap:5px}
-  .dl{font-size:.72rem;padding:4px 9px;border-radius:6px;background:var(--navy-800);border:1px solid var(--line)}
-  .dl.r1{border-left:3px solid var(--strike)}
-  .dl.r2{border-left:3px solid var(--foul)}
+  /* A scope switch inside a picker: which slice of the roster (or of the nine
+     positions) the list below is showing. Reads as one control with two states
+     rather than two buttons that happen to be adjacent. */
+  .pickbar{display:flex;gap:6px;margin-bottom:10px}
+  .pickbar button{flex:1;min-height:44px;padding:6px 8px;border-radius:var(--r-sm);
+    background:var(--navy-850);border:1px solid var(--line);color:var(--ink-dim);
+    font-family:var(--mono);font-weight:800;font-size:.6rem;letter-spacing:.6px}
+  .pickbar button span{display:block;font-size:.72rem;margin-top:2px;opacity:.8}
+  .pickbar button.on{background:var(--foul-d);border-color:#8fb4ff;color:#fff}
+  .pickbar button:disabled{opacity:.35}
+  /* The bench chip carries a count of how many spots he's charted for, so you can
+     see who has options before tapping. */
+  .bchip .cnt{display:inline-block;margin-left:5px;padding:0 4px;border-radius:4px;
+    background:rgba(255,255,255,.07);color:var(--ink-dim);font-size:.6rem;font-weight:800}
+  /* Behind on innings — the players a mid-game sub should be reaching for. */
+  .bchip.owed{border-color:var(--ball);color:var(--ball)}
+  .bchip.owed .cnt{background:rgba(255,176,46,.2);color:var(--ball)}
+
+  /* ---------- LINEUP tab: the pre-game setup card ----------
+     This is the first thing on the tab because the question before a game is
+     "am I ready?", and it answers that before offering anything to edit. It
+     turns green when the answer is yes, so the state is readable from across
+     a dugout without parsing a sentence. */
+  .card.setup{border-color:var(--foul-d);background:linear-gradient(180deg,rgba(91,141,239,.10),transparent 70%)}
+  .card.setup.done{border-color:var(--strike-d);background:linear-gradient(180deg,rgba(61,220,132,.10),transparent 70%)}
+  .setup .srow{display:flex;align-items:flex-start;gap:10px;margin-bottom:11px}
+  .setup .stitle{font-family:var(--mono);font-size:.82rem;font-weight:800;letter-spacing:1.2px;color:var(--foul)}
+  .card.setup.done .stitle{color:var(--strike)}
+  .setup .ssub{font-size:.68rem;color:var(--ink-dim);line-height:1.45;margin-top:3px}
+  .setup .sready{flex:none;text-align:center;min-width:56px;padding:5px 8px;border-radius:10px;
+    background:var(--navy-850);border:1px solid var(--line)}
+  .setup .sready b{display:block;font-family:var(--mono);font-size:1.2rem;font-weight:800;color:var(--ink);line-height:1}
+  .setup .sready span{font-size:.46rem;letter-spacing:.8px;color:var(--ink-faint);font-weight:700}
+  .setup .sready.ok{border-color:var(--strike-d);background:#0e2a1d}
+  .setup .sready.ok b{color:var(--strike)}
+  .setup .row{gap:6px}
+  .setup .row .btn{font-size:.72rem}
+
+  /* The lineup-card row carries both jobs: where he hits (the number on the left,
+     drag to reorder) and where he fields (the pill on the right). Two lists for
+     one card was the app's filing system showing through. */
+  .ord .pospill{flex:none;width:46px;height:44px;border-radius:11px;display:flex;align-items:center;
+    justify-content:center;font-family:var(--mono);font-weight:800;font-size:.76rem;
+    background:var(--navy-800);border:1px solid var(--line);color:var(--ink-dim)}
+  .ord .pospill.r1{background:var(--strike-d);border-color:#2c8f57;color:#fff}
+  .ord .pospill.r2{background:var(--foul-d);border-color:#4a72c9;color:#fff}
+  .ord .pospill.on{background:var(--navy-700);border-color:var(--ink-faint);color:var(--ink)}
+  .ord .pospill.off{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
+  .ord .pospill.eh{background:rgba(255,176,46,.16);border-color:var(--ball-d);color:var(--ball)}
+  .ord .pospill.dh{background:rgba(255,176,46,.16);border-color:var(--ball-d);color:var(--ball)}
+  .ord .pospill.open{background:transparent;border-style:dashed;color:var(--ink-faint)}
+  .ord .innq{flex:none;text-align:right;min-width:26px;line-height:1.05}
+  .ord .innq b{display:block;font-family:var(--mono);font-size:.92rem;font-weight:800;color:var(--ink)}
+  .ord .innq span{font-size:.44rem;letter-spacing:.6px;color:var(--ink-faint);font-weight:700}
+  .ord .nm .sub{display:flex;gap:6px;align-items:center}
+
+  /* ---------- strategy chips ---------- */
+  .stratbar{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .stratbar button{flex:0 0 auto;min-height:46px;padding:7px 11px;border-radius:var(--r-sm);
+    background:var(--navy-850);border:1px solid var(--line);color:var(--ink-dim);
+    font-family:var(--mono);font-weight:800;font-size:.7rem;letter-spacing:.6px}
+  .stratbar button span{display:block;font-size:.48rem;letter-spacing:.4px;opacity:.75;margin-top:2px;font-weight:700}
+  .stratbar button.on{background:var(--foul-d);border-color:#8fb4ff;color:#fff}
+
+  .slotgrid.pos9{grid-template-columns:repeat(3,1fr)}
+  .slotgrid button.r1{border-color:var(--strike-d)}
+  .slotgrid button.r2{border-color:var(--foul-d)}
+  .slotgrid button.blocked{opacity:.4}
+
+  /* ---------- innings-by-position tracker ---------- */
+  /* Seventeen rows by nine columns has to stay readable at 390px, so the numbers
+     do the work and everything else gets out of their way: no cell borders, a
+     dot for zero, and only the name column allowed to be wide. */
+  table.trk{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.68rem}
+  table.trk th{font-size:.52rem;letter-spacing:.5px;color:var(--ink-faint);font-weight:700;
+    padding:0 0 5px;text-align:center}
+  table.trk th.who{text-align:left}
+  table.trk td{text-align:center;padding:3px 0;color:var(--ink-faint)}
+  table.trk td.has{color:var(--ink);font-weight:700}
+  table.trk td.who{text-align:left;font-family:var(--sans);font-size:.72rem;color:var(--ink-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96px;padding-right:4px}
+  table.trk td.tot{font-weight:800;color:var(--ink)}
+  table.trk th.tot{color:var(--ink-dim)}
+  table.trk td.tot.lo{color:var(--ball)}
+  table.trk tbody tr:nth-child(even){background:rgba(255,255,255,.022)}
+
+  .dpos{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px;margin-bottom:9px}
+  .dpos .h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-family:var(--mono);
+    font-size:.7rem;font-weight:800;color:var(--strike);letter-spacing:1px;margin-bottom:8px}
+  .dpos .h .deep{color:var(--ink-faint);font-size:.56rem;letter-spacing:.8px}
+  /* Depth rows sit on the card, so they invert: darker than their container where
+     a batting-order row is lighter than the page. Everything else is the same row. */
+  .ord.dchart{background:var(--navy-800)}
+  .ord.dchart .slotno{color:var(--strike)}
+  .addpos{width:100%;height:44px;border-radius:9px;background:transparent;border:1px dashed var(--line);
+    color:var(--ink-dim);font-weight:800;font-size:.72rem;letter-spacing:.8px;margin-top:2px}
+  .addpos:active{background:var(--navy-800);border-color:var(--foul);color:var(--foul)}
+  /* The depth number rides on the chip so BY PLAYER says where he sits, not just
+     that he's listed. */
+  .pc .rk{display:block;font-size:.5rem;line-height:1;margin-top:2px;opacity:.8}
 
   /* ---------- TIME tab ---------- */
   .trow{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:10px;margin-bottom:8px}
@@ -273,6 +445,9 @@
   .planrow.proj .cnt b{color:var(--ink-dim)}
   .armcard{background:var(--navy-850);border:1px solid var(--line);border-radius:var(--r);padding:11px;margin-bottom:8px}
   .armcard.warn{border-color:var(--ball-d)}
+  /* A count, not a list — reads as one value instead of eight stacked digits. */
+  .ehcount{display:inline-block;min-width:17px;padding:1px 3px;border-radius:5px;
+    background:rgba(255,176,46,.14);color:var(--ball);font-weight:800}
   .armcard.over{border-color:var(--warn)}
   .armcard .top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
   .armcard .nm{flex:1;font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -296,13 +471,16 @@
   .pick.blocked .meta{color:var(--hit)}
 
   /* ---------- Bottom nav ---------- */
-  nav{position:fixed;bottom:0;left:0;right:0;z-index:40;max-width:560px;margin:0 auto;
+  /* Scoped to .tabbar, not bare `nav` — an element selector this opinionated
+     (fixed to the bottom of the screen) captures every <nav> on the page,
+     including the app switcher up in the header. */
+  nav.tabbar{position:fixed;bottom:0;left:0;right:0;z-index:40;max-width:560px;margin:0 auto;
     background:linear-gradient(0deg,var(--navy-900),rgba(11,20,41,.95));backdrop-filter:blur(10px);
     border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-  nav button{flex:1;padding:7px 2px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:3px}
-  nav .ic{font-size:1.05rem;line-height:1}
-  nav .tl{font-size:.52rem;letter-spacing:1px;font-weight:800;color:var(--ink-faint)}
-  nav button.on .tl{color:var(--strike)}
+  nav.tabbar button{flex:1;padding:7px 2px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:3px}
+  nav.tabbar .ic{font-size:1.05rem;line-height:1}
+  nav.tabbar .tl{font-size:.52rem;letter-spacing:1px;font-weight:800;color:var(--ink-faint)}
+  nav.tabbar button.on .tl{color:var(--strike)}
   nav button.on{background:var(--navy-800)}
 
   /* ---------- Bottom sheet (player picker) ---------- */
@@ -321,6 +499,13 @@
   .pick.r0{border-left:3px solid var(--hit);opacity:.72}
   .pick .nm{flex:1;font-weight:600;font-size:.88rem}
   .pick .meta{font-family:var(--mono);font-size:.62rem;color:var(--ink-faint);text-align:right;line-height:1.35}
+  /* A row whose main action is a button and whose destructive action is a
+     separate one beside it, at a size you can actually aim at. */
+  .pickrow{display:flex;align-items:stretch;gap:8px;margin-bottom:6px}
+  .pickrow .pick{flex:1;min-width:0}
+  .killbtn{flex:none;width:44px;border-radius:var(--r-sm);background:transparent;
+    border:1px solid var(--line);color:var(--ink-faint);font-size:.9rem}
+  .killbtn:active{background:#2a1116;border-color:var(--hit-d);color:#ffb9c0}
 
   /* ---------- Toast ---------- */
   #toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%) translateY(16px);z-index:60;
@@ -332,8 +517,12 @@
 <body>
 
 <header>
+  <nav class="appnav">
+    <a href="index.html"><span class="ic">⚾</span>TRACKER</a>
+    <span class="on" aria-current="page"><span class="ic">▦</span>LINEUP</span>
+  </nav>
   <div class="hrow">
-    <span class="badge">NOVA 14U</span>
+    <span class="badge" id="teamBadge">NOVA 14U</span>
     <input id="opp" placeholder="Opponent">
     <button class="iconbtn" data-act="tab" data-tab="set">⚙</button>
   </div>
@@ -389,29 +578,62 @@
 
   <!-- ============ LINEUP ============ -->
   <section id="tab-lineup" class="hide">
-    <div class="card">
-      <div class="row" style="margin-bottom:10px">
-        <button class="btn pri wide" data-act="autofill">⚡ Auto-fill lineup</button>
-        <button class="btn wide" data-act="clearfill">Clear</button>
+    <!-- The pre-game task, stated as one thing. Readiness first, because the
+         question before a game is "am I done?", not "what can I edit?". -->
+    <div class="card setup" id="setupCard">
+      <div class="srow">
+        <div class="grow">
+          <div class="stitle" id="setTitle">SET THE LINEUP</div>
+          <div class="ssub" id="setSub"></div>
+        </div>
+        <div class="sready" id="setReady"></div>
       </div>
-      <div class="gridwrap"><table class="lg" id="grid"></table></div>
-      <div class="faint" style="font-size:.6rem;margin-top:9px;line-height:1.5">
-        Tap any cell to assign. <span style="color:var(--strike)">Green</span> = primary spot ·
-        <span style="color:var(--foul)">Blue</span> = secondary · <span style="color:var(--hit)">Red</span> = off the depth chart.
-        Amber dot = locked (auto-fill won't touch it).
+      <div class="stratbar" id="stratBar"></div>
+      <div class="faint" id="stratNote" style="font-size:.62rem;margin:7px 2px 10px;line-height:1.5"></div>
+      <div class="row">
+        <button class="btn pri wide" data-act="autofill" id="fillBtn">⚡ Auto-fill</button>
+        <button class="btn wide" data-act="loadlineup" id="loadBtn">📋 Load</button>
+        <button class="btn wide" data-act="savelineup">Save</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn wide" data-act="autoorder">Reset order</button>
+        <button class="btn wide" data-act="clearfill">Clear</button>
       </div>
     </div>
 
+    <!-- One row per batting slot, carrying both jobs: where he hits and where he
+         fields. That is what a lineup card is; keeping them in two lists was the
+         app's filing system leaking into the coach's task. -->
     <div class="card">
-      <div class="row" style="margin-bottom:10px">
-        <div class="seclab grow" style="margin:0">BATTING ORDER</div>
-        <button class="btn" data-act="autoorder">Reset order</button>
+      <div class="row" style="margin-bottom:9px">
+        <div class="seclab grow" style="margin:0">LINEUP CARD</div>
+        <span class="faint" style="font-size:.58rem" id="cardInn"></span>
       </div>
-      <div class="seclab" style="margin:0 2px 7px">HOW MANY BAT</div>
+      <div class="pickbar" id="cardScope" style="margin-bottom:9px"></div>
       <div class="sizebar" id="sizeBar"></div>
       <div id="orderList" style="margin-top:11px"></div>
       <div id="orderNote"></div>
+      <div id="benchList"></div>
     </div>
+
+    <!-- Everything below is analysis: useful between innings, never in the way. -->
+    <details class="set" id="planBox">
+      <summary>FULL-GAME PLAN · ALL 7 INNINGS</summary>
+      <div class="body">
+        <div class="gridwrap"><table class="lg" id="grid"></table></div>
+        <div class="faint" style="font-size:.6rem;margin-top:9px;line-height:1.5">
+          Tap any cell to assign. <span style="color:var(--strike)">Green</span> = 1st choice there ·
+          <span style="color:var(--foul)">Blue</span> = further down the chart · <span style="color:var(--hit)">Red</span> = off it.
+          Amber dot = locked (auto-fill won't touch it). A left edge marks where you
+          entered a change — every inning after it carries the same player until you sub again.
+        </div>
+      </div>
+    </details>
+
+    <details class="set" id="trkBox">
+      <summary>INNINGS BY POSITION <span class="faint" id="trkNote"></span></summary>
+      <div class="body"><div id="tracker"></div></div>
+    </details>
 
     <div class="card">
       <div class="seclab">DESIGNATED HITTER · NFHS 3-1-4</div>
@@ -470,6 +692,7 @@
     <div class="tabs2">
       <button class="t on" data-act="tview" data-v="game">THIS GAME</button>
       <button class="t" data-act="tview" data-v="season">SEASON</button>
+      <button class="t" data-act="tview" data-v="pos">BY POSITION</button>
     </div>
     <div id="timeBody"></div>
     <button class="btn wide" data-act="copy" style="width:100%;margin-top:4px">📋 Copy report</button>
@@ -534,7 +757,7 @@
   </section>
 </main>
 
-<nav>
+<nav class="tabbar">
   <button class="on" data-act="tab" data-tab="field"><span class="ic">⚾</span><span class="tl">FIELD</span></button>
   <button data-act="tab" data-tab="lineup"><span class="ic">▦</span><span class="tl">LINEUP</span></button>
   <button data-act="tab" data-tab="arms"><span class="ic">⟳</span><span class="tl">ARMS</span></button>
@@ -571,12 +794,19 @@ const IS_AB = {"1B":1,"2B":1,"3B":1,"HR":1,"K":1,"OUT":1,"ROE":1,"FC":1};
 const IS_HIT = {"1B":1,"2B":1,"3B":1,"HR":1};
 
 /* NOVA Premier roster — carried over from the Pitch Tracker, now 14U. */
+/* Kept byte-for-byte in step with the tracker's ROSTER. This is only the
+   fallback for a copy opened with no tracker beside it — normally the roster
+   comes from whichever team is active over there. */
 const SEED_ROSTER = [
   {num:12,name:"Comottor, Jon"},   {num:5, name:"Kingsland, Gavin"},
   {num:11,name:"Kupets, Ethan"},   {num:3, name:"Cook, Max"},
   {num:13,name:"Edwards, Vinny"},  {num:31,name:"Hayes, Ryan"},
   {num:9, name:"Walowac, Zach"},   {num:1, name:"Leach, Troy"},
-  {num:6, name:"Larson, Christopher"}
+  {num:6, name:"Larson, Christopher"},
+  {num:2, name:"Crabb, Ryan"},     {num:44,name:"Jennings, Ethan"},
+  {num:33,name:"Kang, Kyle"},      {num:25,name:"Kim, Eddie"},
+  {num:23,name:"Rachman, Benjamin"}, {num:27,name:"Robinson, Tyler"},
+  {num:37,name:"Rohrbach, Charlie"}, {num:34,name:"Whitacre, Hunter"}
 ];
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
@@ -584,7 +814,11 @@ function uid(){ return Math.random().toString(36).slice(2,9); }
 /* A player carries their depth-chart ranks with them:
    pos[code] = 1 (primary) · 2 (can play) · 0 (don't put them here). */
 function freshPlayer(p){
-  const pos={}; POSK.forEach(c=> pos[c] = 2);   // start everyone as "can play"
+  // Nobody starts on a depth chart. Seventeen players auto-listed under all nine
+  // positions would leave the BY POSITION editor with nothing to add and lists
+  // too long to read, and the solver already copes with an empty chart by
+  // relaxing to whoever is available.
+  const pos={}; POSK.forEach(c=> pos[c] = 0);
   return {id:uid(), num:p.num??"", name:p.name||"", pos, present:true};
 }
 
@@ -600,9 +834,12 @@ function freshGame(roster, prev){
     // declared fresh on each game's lineup card.
     cur:1,                      // inning currently being coached
     assign:{}, locks:{},
+    // Default to batting everyone who showed up — that's what a continuous
+    // order means. A smaller fixed size is a deliberate choice for sanctioned
+    // play, so it carries over from the last game once it's been made.
     order:(roster||[]).filter(p=>p.present).map(p=>p.id)
-            .slice(0, prev?.size ?? 12),
-    size: prev?.size ?? Math.min(12, Math.max(9, (roster||[]).filter(p=>p.present).length)),
+            .slice(0, prev?.size ?? Infinity),
+    size: prev?.size ?? Math.max(9, (roster||[]).filter(p=>p.present).length),
     dh:null,        // {batterId, forId, mode:"ten"|"self"} — NFHS 3-1-4
     dhEnd:null,     // {why} once the role is terminated for the game
     atBat:0,
@@ -614,23 +851,174 @@ function freshGame(roster, prev){
 function freshStat(){ return {ab:0,h:0,bb:0,k:0,pa:0,pitches:0,byInn:{},rating:0,note:""}; }
 function ST(id){ return G.stats[id] || (G.stats[id] = freshStat()); }
 
-let APP = { roster:[], game:null, hist:[] };
+let APP = { roster:[], game:null, hist:[], saved:[] };
 let G;                                  // shorthand for APP.game
-let UI = { tab:"field", dview:"player", tview:"game", sheet:null };
+let UI = { tab:"field", dview:"player", tview:"game", cardAll:true, sheet:null };
 const UNDO = [];
 
-/* ---------- persistence: one localStorage key, whole app ---------- */
+/* ---------------------------------------------------------------------
+   Bridge to the Pitch Tracker
+
+   Both pages are served from the same origin, so they see the same
+   localStorage. The tracker owns the team list — it has the dropdown — and
+   this page follows whichever team is active there. Two pages that disagree
+   about who you're coaching is worse than no link between them at all.
+
+   Each team gets its own lineup, keyed by the tracker's team id, so the
+   depth chart you build for the 14U squad doesn't follow you to the 17U
+   one. Opened without a tracker alongside it (a "Save as HTML" copy on a
+   phone, offline), there's no team to follow: TEAM stays null and this page
+   behaves exactly as it did before — one lineup under the original key.
+   --------------------------------------------------------------------- */
+const BASE_KEY = "nova_lineup_v1";
+const TRACKER_KEY = "npt_app_v2";
+let TEAM = null;
+
+function trackerTeam(){
+  try{
+    const o = JSON.parse(localStorage.getItem(TRACKER_KEY));
+    const t = o && o.teams && o.teams[o.active || 0];
+    if(!t || !t.id) return null;
+    return { id: t.id, name: t.name || "",
+             roster: ((t.game && t.game.pitchers) || []).map(p=>({num:p.num, name:p.name})) };
+  }catch(e){ return null; }
+}
+function trackerTeams(){
+  try{
+    const o = JSON.parse(localStorage.getItem(TRACKER_KEY));
+    return ((o && o.teams) || []).filter(t=>t && t.id).map(t=>({
+      id: t.id, name: t.name || "",
+      roster: ((t.game && t.game.pitchers) || []).map(p=>({num:p.num, name:p.name}))
+    }));
+  }catch(e){ return []; }
+}
+function storeKey(){ return TEAM ? BASE_KEY + ":" + TEAM.id : BASE_KEY; }
+
+/* One-time handoff. Before this page followed the tracker, it kept a single
+   lineup under the bare key — that's real work (a depth chart, a season of
+   stats) and it has to land on the right team. Match by roster rather than
+   just handing it to whichever team happens to be active, because "active" is
+   only whatever the coach last tapped in the tracker. If nothing matches well
+   enough, the old save stays put rather than being filed under a guess. */
+function adoptLegacySave(teams){
+  const legacy = localStorage.getItem(BASE_KEY);
+  if(!legacy || !teams.length) return;
+  let names;
+  try{
+    const d = JSON.parse(legacy);
+    names = new Set((d.roster||[]).map(p=>String(p.name||"").trim().toLowerCase()).filter(Boolean));
+  }catch(e){ return; }
+  if(!names.size) return;
+  let best = null, bestHits = 0;
+  for(const t of teams){
+    const hits = t.roster.filter(p=>names.has(String(p.name||"").trim().toLowerCase())).length;
+    if(hits > bestHits){ best = t; bestHits = hits; }
+  }
+  if(!best || bestHits * 2 < names.size) return;      // needs a real majority
+  if(localStorage.getItem(BASE_KEY + ":" + best.id)) return;  // that team already has one
+  try{
+    localStorage.setItem(BASE_KEY + ":" + best.id, legacy);
+    localStorage.removeItem(BASE_KEY);
+  }catch(e){}
+}
+
+/* The roster used to be captured once — the first time this page built a
+   lineup for a team — and after that the saved lineup always won. That's right
+   for depth-chart ranks, which take real work to set and must never be blown
+   away by a re-seed. But it also meant the roster was frozen: add a kid in the
+   tracker in week three and he would never appear here, with nothing said.
+
+   So reconcile instead of choosing a winner. Anyone on the tracker's roster
+   who isn't here gets added, keeping every rank already set. Nobody is ever
+   removed — a player can be added on this page directly, and the tracker has
+   no way to know about him, so treating "not in the tracker" as "delete" would
+   throw away real work. Match on name, since the two apps mint their own ids. */
+const normName = s => String(s||"").trim().toLowerCase().replace(/\s+/g," ");
+function syncFromTracker(){
+  if(!TEAM || !TEAM.roster.length) return [];
+  const have = new Set(APP.roster.map(p=>normName(p.name)));
+  const fresh = TEAM.roster.filter(p=>p.name && !have.has(normName(p.name)));
+  if(!fresh.length) return [];
+  fresh.forEach(p=>{
+    const np = Object.assign(freshPlayer(p), p, {present:true});
+    np.id = uid();                       // ids are ours, not the tracker's
+    APP.roster.push(np);
+    // Slot him in to bat if the order has room. If it's already full he shows
+    // up on the bench line instead, which now says so loudly.
+    if(G && G.order && G.order.length < G.size) G.order.push(np.id);
+  });
+  save();
+  return fresh;
+}
+
+/* Depth ranks used to be tiers: 1 meant "primary", 2 meant "can play", and any
+   number of players could share a tier — so "who is my second shortstop" had no
+   answer and the solver settled ties alphabetically. They are ordinals now: 0 is
+   off the chart, 1..N is the order you would actually go to them.
+
+   Existing saves carry tiers, so renumber on load in exactly the order the old
+   BY POSITION list already displayed (tier, then surname). Nobody's chart changes
+   meaning; it only becomes explicit. Running it again on already-ordinal data is
+   a no-op, which is what makes it safe to call on every boot. */
+function normalizeDepth(){
+  let changed = false;
+  for(const c of POSK){
+    const on = APP.roster.filter(p=>p.pos[c] > 0)
+      .sort((a,b)=> a.pos[c]-b.pos[c] || last(a.name).localeCompare(last(b.name)));
+    on.forEach((p,i)=>{ if(p.pos[c] !== i+1){ p.pos[c] = i+1; changed = true; } });
+  }
+  return changed;
+}
+
+/* Ranks have to stay contiguous after any add, drop or reorder — a chart reading
+   1, 2, 4 would render a rank nobody holds. Every mutation routes through here. */
+function reseat(c, ids){
+  APP.roster.forEach(p=>{ if(!ids.includes(p.id)) { if(p.pos[c]) p.pos[c] = 0; } });
+  ids.forEach((id,i)=>{ const p = P(id); if(p) p.pos[c] = i+1; });
+}
+function depthAt(c){
+  return APP.roster.filter(p=>p.pos[c] > 0).sort((a,b)=> a.pos[c] - b.pos[c]);
+}
+/* Green = your 1st choice there, blue = further down, red = off the chart.
+   Red only means something if a chart EXISTS: with nobody listed at first base
+   there is nothing to be off, so an unbuilt position stays neutral instead of
+   painting every assignment as a mistake. */
+function rankCls(c, p){
+  if(!p) return "blank";
+  const r = p.pos[c];
+  return r === 1 ? "r1" : r > 1 ? "r2" : depthAt(c).length ? "off" : "";
+}
+
+/* The badge fits about two words, and what identifies a team is the TAIL —
+   "14U" against "Orange 17U". Clipping the end with CSS would render every
+   team as "NOVA Premier…", so drop words out of the middle instead and keep
+   the club and the age group. "NOVA Premier 14U" lands back on "NOVA 14U",
+   which is what this badge was hand-written as before it went live. */
+function shortTeam(name){
+  const w = String(name).trim().split(/\s+/);
+  if(w.length <= 2) return w.join(" ");
+  return w[0] + " " + w.slice(w.length >= 4 ? -2 : -1).join(" ");
+}
+function renderTeamBadge(){
+  const el = $("teamBadge");
+  if(!el || !TEAM || !TEAM.name) return;
+  el.textContent = shortTeam(TEAM.name);
+  el.title = TEAM.name;          // the full name is one long-press away
+}
+
+/* ---------- persistence: one localStorage key per team ---------- */
 function save(){
-  try{ localStorage.setItem("nova_lineup_v1", JSON.stringify(APP)); }catch(e){}
+  try{ localStorage.setItem(storeKey(), JSON.stringify(APP)); }catch(e){}
 }
 function load(){
   try{
-    const j = localStorage.getItem("nova_lineup_v1");
+    const j = localStorage.getItem(storeKey());
     if(!j) return false;
     const d = JSON.parse(j);
     if(!d || !d.roster) return false;
     APP = d;
     APP.hist = APP.hist || [];
+    APP.saved = APP.saved || [];          // saved lineups arrived after some saves
     APP.game = normalize(APP.game);
     return true;
   }catch(e){ return false; }
@@ -645,7 +1033,7 @@ function normalize(g){
   if(g.innings===undefined) g.innings=7;
   if(g.limit===undefined) g.limit=85;
   if(g.est===undefined) g.est=15;
-  if(g.size===undefined) g.size = Math.min(12, Math.max(9, g.order.length||9));
+  if(g.size===undefined) g.size = Math.max(9, g.order.length||9);
   if(g.dh===undefined) g.dh=null;
   if(g.dhEnd===undefined) g.dhEnd=null;
   Object.values(g.stats).forEach(s=>{
@@ -666,11 +1054,119 @@ function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show");
   clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1500); }
 function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function P(id){ return APP.roster.find(p=>p.id===id) || null; }
+function ord(n){ const t=n%100, s=["th","st","nd","rd"][(t>10&&t<14)?0:(n%10<4?n%10:0)]; return n+s; }
 function last(n){ return String(n||"").split(",")[0].trim() || String(n||""); }
 function firstN(n){ const b=String(n||"").split(","); return (b[1]||b[0]||"").trim(); }
 function label(p){ return p ? (last(p.name) + (firstN(p.name)&&last(p.name)!==firstN(p.name) ? ", "+firstN(p.name).charAt(0) : "")) : ""; }
 function here(){ return APP.roster.filter(p=>p.present); }
-function A(inn){ return G.assign[inn] || (G.assign[inn] = {}); }
+/* ---------------------------------------------------------------------
+   Saved lineups
+
+   A lineup is the batting order plus the defensive change points — the two
+   things that took work to enter. Everything else about a game (pitch counts,
+   at-bats, notes) is history and deliberately NOT carried.
+
+   Player ids are the load-bearing part: a saved lineup points at players, and
+   a roster changes between games. So loading validates rather than trusting —
+   anyone who has left the roster or isn't here today is dropped and named,
+   because a lineup that silently fields a kid who went home is worse than no
+   lineup at all.
+   --------------------------------------------------------------------- */
+function lineupSnapshot(g){
+  const src = g || G;
+  return {
+    order: (src.order || []).slice(),
+    size: src.size,
+    assign: JSON.parse(JSON.stringify(src.assign || {})),
+    strategy: src.strategy || null
+  };
+}
+function applyLineup(src){
+  const live = new Set(here().map(p=>p.id));
+  const dropped = [];
+  const keep = id => {
+    if(live.has(id)) return true;
+    const p = P(id);
+    dropped.push(p ? last(p.name) : "a player no longer on the roster");
+    return false;
+  };
+  snap();                                       // undoable like anything else
+  G.order = (src.order || []).filter(keep);
+  G.size = Math.max(9, G.order.length);
+  /* Rebuild the change points, dropping anyone who can't play today. The layer
+     is kept with an explicit null rather than deleted, so the inning stays a
+     change point — delete it and the dropped starter would be re-inherited from
+     the inning before. */
+  const out = {};
+  for(const k in src.assign || {}){
+    const layer = src.assign[k], next = {};
+    for(const c of POSK){
+      if(!(c in layer)) continue;
+      const id = layer[c];
+      next[c] = (id && live.has(id)) ? id : null;
+    }
+    out[k] = next;
+  }
+  G.assign = out;
+  G.locks = {};
+  if(src.strategy) G.strategy = src.strategy;
+  G.atBat = 0;
+  return { batting: G.order.length, dropped: [...new Set(dropped)] };
+}
+
+/* The last game played, as a lineup you can start from. */
+function lastGameLineup(){
+  const g = APP.hist[APP.hist.length - 1];
+  if(!g || !(g.order || []).length) return null;
+  return { snap: lineupSnapshot(g), opp: g.opp || "", date: g.date || "" };
+}
+
+/* ---------------------------------------------------------------------
+   The lineup is a set of CHANGE POINTS, not seven independent innings.
+
+   G.assign[inn][c] exists only where somebody was actually put there. Every
+   later inning inherits it until something else is written at that position.
+   So entering nine names once covers the whole game, and a sub in the fourth
+   holds through the seventh — which is how a lineup card has always worked,
+   and why re-entering the defence every inning was never the real task.
+
+   An explicit null means "deliberately nobody", so subbing a spot empty also
+   carries forward instead of quietly re-inheriting the man who was there.
+   --------------------------------------------------------------------- */
+function eff(inn, game){
+  const g = game || G, out = {};
+  for(let i = 1; i <= inn; i++){
+    const layer = g.assign[i]; if(!layer) continue;
+    for(const c of POSK){
+      if(!(c in layer)) continue;
+      if(layer[c] == null) delete out[c]; else out[c] = layer[c];
+    }
+  }
+  return out;
+}
+/* A(inn) is the lineup AS PLAYED in that inning — inheritance resolved. It is a
+   fresh object, so a write to it would change nothing and be lost in silence,
+   which is the one dangerous mistake this model invites. Frozen, so that write
+   throws instead: every mutation has to go through setPos, where the
+   carry-forward rule lives. */
+function A(inn){ return Object.freeze(eff(inn)); }
+function raw(inn){ return G.assign[inn] || (G.assign[inn] = {}); }
+
+/* Putting someone somewhere carries forward: later entries for THIS position
+   are dropped so they inherit the new man, while every other position keeps
+   whatever was planned. Subbing the shortstop must not disturb the rotation. */
+function setPos(inn, c, id){
+  raw(inn)[c] = id || null;
+  for(let i = inn + 1; i <= G.innings; i++){
+    const layer = G.assign[i];
+    if(layer && c in layer) delete layer[c];
+  }
+}
+/* Pull a player off the field from this inning on, wherever he is. */
+function benchFrom(inn, id){
+  const a = A(inn);
+  for(const c of POSK) if(a[c] === id) setPos(inn, c, null);
+}
 function L(inn){ return G.locks[inn]  || (G.locks[inn]  = {}); }
 
 /* =====================================================================
@@ -764,7 +1260,7 @@ function project(id){
   const s = ST(id), est = estFor(id);
   let proj = s.pitches, planned = 0, ahead = 0;
   for(let i=1;i<=G.innings;i++){
-    if((G.assign[i]||{}).P !== id) continue;
+    if(A(i).P !== id) continue;
     planned++;
     if(i < G.cur) continue;                       // already in s.pitches
     const rest = Math.max(0, est - (s.byInn[i]||0));
@@ -793,11 +1289,24 @@ function cpCheck(grid){
 /* The grid as it WOULD be if `id` took position `c` in `inn`, swap included.
    Used both to grey out illegal choices in the picker and to refuse the tap. */
 function prospective(inn, c, id){
-  const a = {...(G.assign[inn]||{})};
+  // Resolve inheritance first, then lay the hypothetical change over it, so the
+  // check tests the lineup as it would actually be PLAYED.
+  const a = eff(inn);
   const from = POSK.find(k=>a[k]===id), displaced = a[c];
   if(from){ if(displaced && displaced!==id) a[from] = displaced; else delete a[from]; }
   a[c] = id;
-  return {...G.assign, [inn]: a};
+  // Later innings inherit from this one, so they have to be resolved too.
+  const out = {[inn]: a};
+  for(let i = inn + 1; i <= G.innings; i++){
+    const layer = G.assign[i] || {}, prev = {...out[i-1]};
+    for(const k of POSK){
+      if(!(k in layer)) continue;
+      if(layer[k] == null) delete prev[k]; else prev[k] = layer[k];
+    }
+    out[i] = prev;
+  }
+  for(let i = 1; i < inn; i++) out[i] = eff(i);
+  return out;
 }
 function blockedBy(inn, c, id){ return cpCheck(prospective(inn, c, id))[0] || null; }
 
@@ -807,7 +1316,7 @@ function blockedBy(inn, c, id){ return cpCheck(prospective(inn, c, id))[0] || nu
 function timeFor(id, game){
   const g = game||G, out = {total:0, byPos:{}};
   for(let i=1;i<=g.innings;i++){
-    const a = g.assign[i]||{};
+    const a = eff(i, g);
     for(const c of POSK) if(a[c]===id){ out.total++; out.byPos[c]=(out.byPos[c]||0)+1; }
   }
   return out;
@@ -854,7 +1363,11 @@ function roleIn(inn, id){
   if(c) return c;
   const dh = dhLive();
   if(dh && dh.mode==="ten" && id===dh.batterId) return "DH";
-  return G.order.includes(id) ? EH_LABEL : "—";
+  /* Not fielding is only "extra hitter" once there are nine fielders. Short of
+     that he is simply unplaced, and saying EH would report a decision nobody
+     has made — the same false signal as calling an unbuilt chart "off chart". */
+  if(!G.order.includes(id)) return "—";
+  return POSK.filter(k=>a[k]).length === 9 ? EH_LABEL : "—";
 }
 function benchFor(inn){
   const a = A(inn), on = new Set(POSK.map(c=>a[c]).filter(Boolean));
@@ -916,7 +1429,7 @@ function dhCheck(){
     const gone = G.dhEnd.out && P(G.dhEnd.out);
     if(gone){
       const still = [];
-      for(let i=G.cur;i<=G.innings;i++) if(POSK.some(k=>(G.assign[i]||{})[k]===gone.id)) still.push(i);
+      for(let i=G.cur;i<=G.innings;i++){ const a=A(i); if(POSK.some(k=>a[k]===gone.id)) still.push(i); }
       if(still.length)
         out.push(`${last(gone.name)} left the game when the role ended, but is still in the field for ${
           still.map(i=>"inning "+i).join(", ")}. Put someone else there.`);
@@ -930,16 +1443,16 @@ function dhCheck(){
     if(G.order.includes(dh.forId))
       out.push(`${last(def.name)} is being hit for, so he can't also be in the batting order — that ends the DH role.`);
     const fieldsAt = [];
-    for(let i=1;i<=G.innings;i++){ const c = POSK.find(k=>(G.assign[i]||{})[k]===dh.batterId); if(c) fieldsAt.push(i); }
+    for(let i=1;i<=G.innings;i++){ const a=A(i), c = POSK.find(k=>a[k]===dh.batterId); if(c) fieldsAt.push(i); }
     if(fieldsAt.length)
       out.push(`${last(bat.name)} is your DH but is down to play ${fieldsAt.map(i=>"inning "+i).join(", ")}. Taking the field ends the DH role.`);
     let defPlays = false;
-    for(let i=1;i<=G.innings;i++) if(POSK.some(k=>(G.assign[i]||{})[k]===dh.forId)) defPlays = true;
+    for(let i=1;i<=G.innings;i++){ const a=A(i); if(POSK.some(k=>a[k]===dh.forId)) defPlays = true; }
     if(!defPlays)
       out.push(`${last(def.name)} is being hit for but isn't in the field anywhere. A DH has to be hitting for someone who plays.`);
   }else{
     let plays = false;
-    for(let i=1;i<=G.innings;i++) if(POSK.some(k=>(G.assign[i]||{})[k]===dh.batterId)) plays = true;
+    for(let i=1;i<=G.innings;i++){ const a=A(i); if(POSK.some(k=>a[k]===dh.batterId)) plays = true; }
     if(!plays)
       out.push(`${last(bat.name)} is listed as his own DH (P/DH) but isn't in the field. That's fine once he's come out, but he has to start somewhere.`);
     if(!G.order.includes(dh.batterId))
@@ -989,11 +1502,61 @@ function endDH(why, keepId){
      · variety       — spread positions around over a long game
    Locked cells are treated as immovable and just consume the player.
    ===================================================================== */
+/* ---------------------------------------------------------------------
+   Auto-fill strategies
+
+   The solver always had a philosophy baked into its weights — depth rank
+   dominates, fairness second. That is one right answer for a tournament game
+   and the wrong one for a development game, so the philosophy becomes a
+   choice. Three strategies are weight sets over the same cost function; two
+   change its shape.
+
+   What is NOT negotiable: rest days, the pitch limit and the catcher–pitcher
+   rule. Those are safety, not preference, and they stay where they are — as
+   filters on the candidate pool, so no strategy can even express an illegal
+   lineup.
+   --------------------------------------------------------------------- */
+const STRATS = [
+  {k:"best",    label:"BEST",     sub:"Strongest defence",
+   note:"Your depth chart, top down. Strongest glove at every spot — playing time will be uneven.",
+   w:{rank:1400, fair:40,  vary:20,  stay:900, back:0}},
+  {k:"balanced",label:"BALANCED", sub:"Even innings",
+   note:"Everyone lands within an inning or so of each other. Your best glove will sit sometimes.",
+   w:{rank:600,  fair:680, vary:95,  stay:240, back:0}},
+  {k:"owed",    label:"OWED",     sub:"Least played first",
+   note:"Whoever is furthest behind on the season gets the ball first, then the depth chart breaks ties.",
+   w:{rank:450,  fair:1100,vary:120, stay:120, back:0}, season:true},
+  {k:"alt",     label:"ALTERNATE",sub:"No back-to-back",
+   note:"Nobody fields two innings in a row while there's anyone left to take the spot. Maximum rotation.",
+   w:{rank:900,  fair:300, vary:90,  stay:0,   back:2600}},
+  {k:"split",   label:"SPLIT",    sub:"Two squads, half each",
+   note:"Squad A plays the first half, squad B the second. Blocks of innings instead of a shuffle.",
+   w:{rank:700,  fair:90,  vary:40,  stay:600, back:0}, split:true}
+];
+function strat(){ return STRATS.find(x=>x.k===(G.strategy||"balanced")) || STRATS[1]; }
+
 function autofill(){
   snap();
+  const S = strat(), W = S.w;
   // Only players actually in the game can take the field: the batting order,
   // minus a DH who doesn't field, plus the defensive player he bats for.
   const avail = fielders();
+  /* SPLIT doesn't deal two squads up front. Pre-dealing by talent fights the
+     depth chart — a squad with nobody charted at catcher has to borrow one, and
+     the halves bleed into each other. Instead the innings are solved in order and
+     the second half simply penalises anyone who played the first, so the split
+     falls out of the same cost function everything else uses, and respects the
+     chart on the way. */
+  const half = Math.ceil(G.innings / 2);
+  const early = new Set(), late = new Set();
+  /* Prior-season innings, computed once. Re-deriving them per candidate per cell
+     would walk every game in the history ~1000 times a fill; and adding today's
+     planned innings on top is what makes OWED mean "owed, counting what I've
+     already penciled in" rather than re-picking the same player nine times. */
+  const prior = {};
+  if(S.season) avail.forEach(p=>{
+    prior[p.id] = seasonFor(p.id).total - timeFor(p.id).total;
+  });
   if(avail.length < 9){ toast(`Only ${avail.length} players available to field`); }
 
   const played = {};                       // id → innings played so far
@@ -1009,13 +1572,21 @@ function autofill(){
   // catcher-pitcher check reads the grid, so leaving stale future innings in
   // place would have it testing against a lineup we're about to overwrite.
   for(let i=1;i<=G.innings;i++){
-    const a = A(i), lk = L(i);
+    const was = A(i), lk = L(i), keep = {};
     for(const c of POSK)
-      if(!(lk[c] && a[c] && avail.some(p=>p.id===a[c]))) delete a[c];
+      if(lk[c] && was[c] && avail.some(p=>p.id===was[c])) keep[c] = was[c];
+    // A full snapshot per inning: Auto-fill plans the whole game, so every inning
+    // becomes its own change point. A later manual sub still carries forward from
+    // wherever the coach makes it, because setPos clears that position ahead.
+    G.assign[i] = keep;
   }
 
   for(let i=1;i<=G.innings;i++){
-    const a = A(i), lk = L(i);
+    const a = raw(i), lk = L(i);
+    // Auto-fill writes a complete snapshot per inning, so the previous inning's
+    // raw layer already IS its full lineup — resolved once here rather than per cell.
+    const prevA = i > 1 ? A(i-1) : {};
+    const playedLast = new Set(POSK.map(k=>prevA[k]).filter(Boolean));
     const taken = new Set();
     for(const c of POSK) if(a[c]){ taken.add(a[c]); credit(a[c],c); }   // surviving locks
 
@@ -1048,25 +1619,31 @@ function autofill(){
       // beats silently writing a lineup that breaks the catcher-pitcher rule.
       if(!pool.length) continue;
 
-      const prev = (G.assign[i-1]||{})[c];
+      const prev = prevA[c];
       const best = pool.map(p=>{
-        let s = (p.pos[c]||3) * 1000;                 // depth rank dominates everything
-        s += played[p.id] * 260;                      // fairness: fewest innings gets the nod
-        s += (atPos[p.id][c]||0) * 95;                // variety: stop parking a kid in RF
-        if(p.id===prev) s -= (c==="P"||c==="C") ? 900 : 240;   // continuity
-        s += Math.random() * 80;                      // tie-break, see note below
+        // One cost function; the strategy supplies the weights. Lowest wins.
+        let s = (p.pos[c] || 3) * W.rank;                    // depth on the chart
+        s += ((S.season ? prior[p.id] : 0) + played[p.id]) * W.fair;   // who is owed innings
+        s += (atPos[p.id][c] || 0) * W.vary;                 // stop parking a kid in RF
+        if(p.id === prev) s -= (c==="P"||c==="C") ? W.stay : W.stay * 0.27; // continuity
+        if(W.back && playedLast.has(p.id)) s += W.back;      // ALTERNATE: rest him
+        /* SPLIT wants NINE players to hold a half, not seventeen to share it, so
+           within a half it pulls the other way from fairness: stick with whoever
+           is already out there, and shut out anyone who played the other half. */
+        if(S.split){
+          if((i <= half ? late : early).has(p.id)) s += 2400;
+          if((i <= half ? early : late).has(p.id)) s -= 1500;
+        }
+        s += Math.random() * 80;                             // tie-break
         return {p, s};
       }).sort((m,n)=> m.s - n.s)[0].p;
-      // Why these numbers: continuity (-240) beats one or two innings of variety
-      // (+95 each), so a fielder holds a spot for ~3 innings and then rotates.
-      // P and C get a much heavier continuity bonus (-900) because shuffling the
-      // battery mid-game is a real cost, not a fairness win. Fairness outranks
-      // both, so a player sitting on the bench always outbids a player already on.
-      // The random term is smaller than one step of any other pressure, so it can
-      // only separate genuine ties — which means tapping Auto-fill again offers a
-      // different, equally valid lineup instead of the same one forever.
+      // Why the numbers move together: the tie-break is deliberately smaller than
+      // one step of any other pressure, so it separates genuinely equal candidates
+      // without ever outvoting a real preference. Tap Auto-fill twice and you get
+      // two different valid lineups rather than the same one.
 
       a[c] = best.id; taken.add(best.id); credit(best.id, c);
+      (i <= half ? early : late).add(best.id);
       if(c==="P") projP[best.id] += estFor(best.id);
     }
   }
@@ -1109,15 +1686,25 @@ function renderField(){
       style="left:${x}%;top:${y}%" data-act="cell" data-i="${G.cur}" data-c="${c}">
       <div class="p">${c}</div>
       <div class="n">${p ? esc(last(p.name)) : "—"}</div>
-      ${p&&p.num!==""?`<div class="num">#${esc(p.num)}</div>`:""}
+      ${p?`<div class="num">${p.num!==""?`#${esc(p.num)} `:""}<span style="opacity:.7">${timeFor(p.id).total}in</span></div>`:""}
     </button>`;
   }).join("");
 
   const b = benchFor(G.cur);
   $("bench").innerHTML = b.length
     ? `<span class="faint" style="font-size:.6rem;letter-spacing:1.5px;align-self:center">BENCH</span>` +
-      b.map(p=>`<span class="bchip">${esc(last(p.name))}</span>`).join("")
+      /* Sorted by who has played least, because that is the question a bench
+         answers mid-game. The number is his innings so far — the one fact that
+         decides the next sub, now readable without leaving the tab. */
+      b.slice().sort((x,y)=> timeFor(x.id).total - timeFor(y.id).total).map(p=>{
+        const t = timeFor(p.id).total, target = G.innings * 9 / Math.max(1, here().length);
+        return `<button class="bchip ${t < Math.floor(target) ? "owed" : ""}" data-act="benchpick" data-id="${p.id}">${
+          esc(last(p.name))}<span class="cnt">${t}</span></button>`;
+      }).join("")
     : `<span class="faint" style="font-size:.64rem">Everyone's on the field this inning.</span>`;
+  if(b.length) $("bench").insertAdjacentHTML("beforeend",
+    `<span class="faint" style="font-size:.58rem;flex-basis:100%;line-height:1.5;margin-top:2px">
+       Fewest innings first. The number is innings played — amber is owed time. Tap a name to bring him on.</span>`);
 
   renderBatter();
   renderPitch();
@@ -1190,50 +1777,170 @@ function renderLineup(){
   let h = `<thead><tr><th></th>${inns.map(i=>`<th>${i}</th>`).join("")}</tr></thead><tbody>`;
   for(const [c,full] of POS){
     h += `<tr><td class="poslab">${c}</td>` + inns.map(i=>{
-      const p = P((G.assign[i]||{})[c]);
-      const rank = p ? p.pos[c] : null;
-      const cls = !p ? "blank" : rank===1 ? "r1" : rank===2 ? "r2" : "off";
+      const p = P(eff(i)[c]);
+      const cls = rankCls(c, p);
+      // A scorebook notes WHERE a substitution happened, not just who played. An
+      // inherited cell is the same man carried forward; a change point is a
+      // decision you made, and the one you'd want to undo.
+      const isChange = !!(G.assign[i] && c in G.assign[i]);
       const lock = (G.locks[i]||{})[c] ? "locked" : "";
       const cur  = i===G.cur ? "cur" : "";
       const txt  = p ? (p.num!=="" ? p.num : last(p.name).slice(0,3)) : "·";
-      return `<td><button class="cell ${cls} ${lock} ${cur}" data-act="cell" data-i="${i}" data-c="${c}"
+      return `<td><button class="cell ${cls} ${lock} ${cur} ${isChange?"chg":""}" data-act="cell" data-i="${i}" data-c="${c}"
         title="${esc(full)}">${esc(txt)}</button></td>`;
     }).join("") + `</tr>`;
   }
-  h += `<tr><td class="poslab" style="color:var(--ball)">${EH_LABEL}</td>` + inns.map(i=>
-    `<td class="benchcell">${ehFor(i).map(p=>esc(p.num!==""?p.num:last(p.name).slice(0,2))).join("<br>")||"—"}</td>`
-  ).join("") + `</tr></tbody>`;
+  /* Listing every extra hitter works at 10-12 batters, where there are one to
+     three of them. On a 17-man continuous order there are eight every inning,
+     and a stack of eight numbers in all seven columns becomes the loudest thing
+     on the screen while saying the least — who ISN'T fielding is the grid's
+     least interesting fact. So list them while the list is short, and switch to
+     a count once it isn't. The names stay one long-press away either way. */
+  h += `<tr><td class="poslab" style="color:var(--ball)">${EH_LABEL}</td>` + inns.map(i=>{
+    const eh = ehFor(i);
+    const who = eh.map(p=>label(p)).join(", ");
+    if(!eh.length) return `<td class="benchcell">—</td>`;
+    const body = eh.length <= 3
+      ? eh.map(p=>esc(p.num!==""?p.num:last(p.name).slice(0,2))).join("<br>")
+      : `<span class="ehcount">${eh.length}</span>`;
+    return `<td class="benchcell" title="${esc(who)}">${body}</td>`;
+  }).join("") + `</tr></tbody>`;
   $("grid").innerHTML = h;
 
-  $("sizeBar").innerHTML = [9,10,11,12].map(n=>
-    `<button class="${n===G.size?"on":""}" data-act="size" data-n="${n}">${n}<span>${
-      n===9?"NO EH":`${n-9} ${EH_LABEL}`}</span></button>`).join("");
+  // ---- setup header: am I ready to start? ----
+  const S = strat();
+  $("stratBar").innerHTML = STRATS.map(x=>
+    `<button class="${x.k===S.k?"on":""}" data-act="strat" data-k="${x.k}">${x.label}<span>${x.sub}</span></button>`).join("");
+  $("stratNote").textContent = S.note;
 
-  $("orderList").innerHTML = G.order.length ? G.order.map((id,k)=>{
+  const a1 = A(G.cur);
+  const posFilled = POSK.filter(c=>a1[c]).length;
+  const batting = G.order.length;
+  const ready = posFilled === 9 && batting >= 9;
+  $("setupCard").classList.toggle("done", ready);
+  $("setTitle").textContent = ready ? "LINEUP IS SET" : "SET THE LINEUP";
+  /* Name what's missing, not that something is. "9 batting, no positions yet" is
+     a next action; "incomplete" is a scolding. */
+  const gaps = [];
+  if(batting < 9) gaps.push(`${9-batting} more batter${9-batting===1?"":"s"} needed`);
+  if(posFilled === 0) gaps.push("no positions set yet");
+  else if(posFilled < 9) gaps.push(`open: ${POSK.filter(c=>!a1[c]).join(", ")}`);
+  $("setSub").textContent = ready
+    ? `${batting} batting · all nine positions · carries every inning until you sub`
+    : gaps.join(" · ");
+  $("setReady").innerHTML = `<b>${posFilled}</b><span>/9 POS</span>`;
+  $("setReady").className = "sready" + (posFilled===9 ? " ok" : "");
+  /* Emphasis follows the likely next action: with a lineup available and nothing
+     set, loading one beats building it by hand, so it leads. */
+  /* Exactly one primary. Two buttons in the same blue is two buttons saying
+     "start here", which is none. With a lineup available and nothing set,
+     loading one is the shorter path, so it takes the emphasis and Auto-fill
+     steps down; once anything is set, Auto-fill leads again. */
+  const canLoad = !!lastGameLineup() || APP.saved.length > 0;
+  const loadLeads = canLoad && posFilled === 0 && G.order.length === 0;
+  const fb = $("fillBtn");
+  if(fb) fb.classList.toggle("pri", !loadLeads);
+  const lb = $("loadBtn");
+  if(lb){
+    lb.classList.toggle("pri", loadLeads);
+    lb.textContent = canLoad
+      ? `📋 Load${APP.saved.length ? ` (${APP.saved.length})` : ""}`
+      : "📋 Load";
+    lb.disabled = !canLoad;
+    lb.style.opacity = canLoad ? "" : ".45";
+  }
+  $("cardInn").textContent = G.log.length || G.cur > 1
+    ? `EDITING INNING ${G.cur}` : "INNING 1 · CARRIES ALL GAME";
+
+  renderTracker();
+
+  /* Lineup size: shortcuts that move the order itself, not a separate setting
+     the order then has to be argued into agreement with. Sizes at or above the
+     squad are dropped — offering "12" to a team of ten offers a lineup that
+     can't be filled. */
+  const present = here().length;
+  const n = G.order.length;
+  $("sizeBar").innerHTML = [9,10,11,12].filter(v => v < present).map(v=>
+    `<button class="${v===n?"on":""}" data-act="size" data-n="${v}">${v}<span>${
+      v===9?"NO EH":`${v-9} ${EH_LABEL}`}</span></button>`).join("")
+    + `<button class="${n>=present?"on":""}" data-act="size" data-n="${present}">${present}<span>ALL</span></button>`;
+
+  const dh = dhLive();
+  /* Seventeen rows is three and a half screens. Collapsing to the nine who are
+     actually on the field turns the card back into a lineup card for the innings
+     when that is all you need, and the slot numbers stay absolute so row 12 still
+     reads "12" — a renumbered subset would be a different lineup. STARTERS is
+     disabled until somebody is placed, rather than offering an empty list. */
+  const starters = new Set(POSK.map(c=>a1[c]).filter(Boolean));
+  const dhL = dhLive();
+  if(dhL && dhL.mode==="ten") starters.add(dhL.batterId);
+  const canCollapse = starters.size > 0;
+  const showAll = UI.cardAll || !canCollapse;
+  $("cardScope").innerHTML =
+    `<button class="${showAll?"":"on"}" ${canCollapse?`data-act="cardscope" data-v="starters"`:"disabled"}>
+       ON THE FIELD<span>${starters.size}</span></button>
+     <button class="${showAll?"on":""}" data-act="cardscope" data-v="all">WHOLE ORDER<span>${n}</span></button>`;
+
+  $("orderList").dataset.sortable = "order";
+  $("orderList").innerHTML = n ? G.order.map((id,k)=>{
     const p = P(id); if(!p) return "";
-    const s = ST(id), r = roleIn(G.cur, id);
-    const rc = r===EH_LABEL ? "eh" : r==="DH" ? "dh" : "";
-    return `<div class="ord ${k===G.atBat%G.order.length?"atbat":""}">
-      <span class="slotno">${k+1}</span>
-      <span class="role ${rc}">${r}</span>
-      <span class="nm">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</span>
-      <span class="faint tnum" style="font-size:.64rem;margin-right:2px">${s.h}/${s.ab}</span>
-      <button class="mini" data-act="ordup" data-k="${k}">▲</button>
-      <button class="mini" data-act="orddn" data-k="${k}">▼</button>
-      <button class="mini" data-act="setab" data-k="${k}" title="Bat here next">⚾</button>
+    if(!showAll && !starters.has(id)) return "";
+    const t = timeFor(id), r = roleIn(G.cur, id);
+    // His defensive spot this inning — the other half of the lineup card.
+    const c = POSK.find(x=>a1[x]===id) || null;
+    /* "Extra hitter" only means something once the nine are filled. Before that
+       an unplaced batter is unplaced, not an EH — calling him one would report a
+       decision the coach hasn't made yet. */
+    const placed = posFilled === 9;
+    const role = c ? null : (r==="DH" ? "DH" : (placed && r===EH_LABEL) ? EH_LABEL : null);
+    const pcls = c ? (rankCls(c, p) || "on") : role ? (role==="DH" ? "dh" : "eh") : "open";
+    const badge = c || role || "—";
+    const chart = POSK.filter(x=>p.pos[x]>0).sort((x,y)=>p.pos[x]-p.pos[y]);
+    return `<div class="ord ${k===G.atBat%n?"atbat":""}" data-sortrow data-id="${id}">
+      <button class="grip" data-act="nop" aria-label="Reorder ${esc(label(p))}">
+        <svg width="13" height="20" viewBox="0 0 13 20" fill="currentColor" aria-hidden="true">
+          <circle cx="3" cy="4" r="1.6"/><circle cx="10" cy="4" r="1.6"/>
+          <circle cx="3" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/>
+          <circle cx="3" cy="16" r="1.6"/><circle cx="10" cy="16" r="1.6"/>
+        </svg></button>
+      <button class="slotno" data-act="movepick" data-id="${id}"
+        aria-label="Move ${esc(label(p))} in the order">${k+1}</button>
+      <span class="nm"><b>${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</b>
+        <span class="sub">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span>`:""}
+          <span class="faint tnum">${chart.length ? esc(chart.slice(0,2).map(x=>`${ord(p.pos[x])} ${x}`).join(" · ")) : "no chart"}</span></span></span>
+      <button class="pospill ${pcls}" data-act="bppick" data-id="${id}"
+        aria-label="Set ${esc(label(p))}'s position">${badge}</button>
+      <span class="innq"><b>${t.total}</b><span>INN</span></span>
     </div>`;
-  }).join("") : `<div class="faint" style="font-size:.8rem">No one marked present — see the Depth tab.</div>`;
+  }).join("") : `<div class="faint" style="font-size:.8rem">Nobody's batting yet — add players below, or mark them present on the Depth tab.</div>`;
 
-  const subs = subsFor(), dh = dhLive();
+  /* The bench used to be a sentence naming who was sitting. Naming a problem
+     next to no way to fix it is the whole complaint: these are rows now, and
+     the fix is the tap that's already under your thumb. */
+  const subs = subsFor();
+  $("benchList").innerHTML = subs.length ? `
+    <div class="seclab" style="margin:14px 2px 7px;color:var(--ball)">NOT BATTING · ${subs.length}</div>`
+    + subs.map(p=>`<div class="benchrow">
+        <span class="nm">${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${esc(firstN(p.name).charAt(0)+". "+last(p.name))}</span>
+        <button class="add" data-act="ordin" data-id="${p.id}">+ ADD</button>
+      </div>`).join("") : "";
+
   const notes = [];
-  if(G.order.length !== G.size)
-    notes.push(`<span style="color:var(--ball)">Order holds ${G.order.length} of ${G.size} — ${
-      G.order.length < G.size ? "mark more players present on the Depth tab" : "trim it"}.</span>`);
-  if(G.size > 9) notes.push(`Badges show this inning's role. ${G.size-9} ${EH_LABEL} bat${G.size-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
+  if(!showAll && n > starters.size)
+    notes.push(`<span style="color:var(--ball)">Showing the ${starters.size} on the field · ${
+      n - starters.size} more in the order.</span> Tap WHOLE ORDER to reorder across everyone.`);
+  /* Only worth saying while the nine are still short: once they're filled the
+     rest are extra hitters on purpose, and flagging them would be noise. */
+  if(posFilled < 9){
+    const need = 9 - posFilled;
+    notes.push(`<span style="color:var(--ball)">${need} more position${need===1?"":"s"} to fill (${
+      POSK.filter(c=>!a1[c]).join(", ")}) — tap a <b>—</b> to place someone, or use Auto-fill.</span>`);
+  }
+  if(n > 9 && posFilled === 9)
+    notes.push(`Badges show this inning's role. ${n-9} ${EH_LABEL} bat${n-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
   if(dh && dh.mode==="ten") notes.push(`${esc(last(P(dh.forId)?.name||""))} fields but doesn't bat — the DH holds his slot.`);
-  if(subs.length) notes.push(`Not in the game: ${subs.map(p=>esc(last(p.name))).join(", ")}.`);
-  $("orderNote").innerHTML = notes.length
-    ? `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>` : "";
+  notes.push(`Drag the handle to reorder the batting order · tap the <b>number</b> to move or remove him · tap the <b>position</b> to set where he fields · ↺ undoes any of it.`);
+  $("orderNote").innerHTML = `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>`;
 
   renderDH();
 }
@@ -1296,9 +2003,11 @@ function renderArms(){ renderArmWarn(); renderPlan(); renderProj(); renderAvail(
   $("setEst").value = G.est; }
 
 function renderArmWarn(){
-  const probs = cpCheck(G.assign);
+  const resolved = {};
+  for(let i=1;i<=G.innings;i++) resolved[i] = A(i);
+  const probs = cpCheck(resolved);
   for(let i=1;i<=G.innings;i++)
-    if(!(G.assign[i]||{}).P) probs.push(`Inning ${i} has no pitcher assigned.`);
+    if(!A(i).P) probs.push(`Inning ${i} has no pitcher assigned.`);
   APP.roster.forEach(p=>{
     const pr = project(p.id);
     if(!pr.planned) return;
@@ -1318,7 +2027,7 @@ function renderArmWarn(){
 function renderPlan(){
   const cum = {};
   $("planList").innerHTML = Array.from({length:G.innings},(_,k)=>k+1).map(i=>{
-    const id = (G.assign[i]||{}).P, p = P(id);
+    const id = A(i).P, p = P(id);
     if(!p) return `<button class="planrow" data-act="planpick" data-i="${i}">
         <span class="inn">${i}</span><span class="who none">— tap to assign —</span></button>`;
     const s = ST(id);
@@ -1341,7 +2050,7 @@ function renderProj(){
     const state = pr.proj > DAILY_MAX ? "over" : pr.proj > G.limit ? "warn" : "";
     const pct = Math.min(100, 100*pr.proj/G.limit);
     const innList = [];
-    for(let i=1;i<=G.innings;i++) if((G.assign[i]||{}).P===p.id) innList.push(i);
+    for(let i=1;i<=G.innings;i++) if(A(i).P===p.id) innList.push(i);
     return `<div class="armcard ${state}">
       <div class="top">
         <span class="nm">${esc(last(p.name))}</span>
@@ -1377,6 +2086,79 @@ function renderAvail(){
       No one is marked as a pitcher. Set P on the Depth tab.</div>`;
 }
 
+/* The grid asks "who plays shortstop?" — position first. A coach standing in a
+   dugout asks "where does Kang go?" — player first. Same data, opposite entry
+   point, so it is a view rather than a second source of truth.
+
+   One position per player is enforced by what the picker OFFERS: a position
+   already taken this inning simply isn't in the list, so a double-assignment
+   can't be expressed. Same approach as the catcher–pitcher rule — constrain the
+   pool, don't validate the result. */
+/* Which positions can this player take THIS inning: whatever is free, plus the
+   one he already holds (so the sheet can say "leave him there"). */
+function openByPlayerPick(id){
+  const p = P(id); if(!p) return;
+  UI.bpPick = id;
+  const inn = G.cur, a = A(inn);
+  const mine = POSK.find(c=>a[c]===id) || null;
+  /* Every position is offered, not just the free ones. With nine filled, "only
+     what's open" is nothing at all, and swapping two fielders is the ordinary
+     mid-game move — the constraint that matters is that nobody ends up in two
+     places, and a swap keeps that. An occupied button trades the two players. */
+  const choices = POSK.slice();
+  $("sheetTitle").textContent = `${label(p).toUpperCase()} · INNING ${inn}`;
+  const t = timeFor(id);
+  $("sheetBody").innerHTML =
+    `<div class="slotgrid pos9">` + choices.map(c=>{
+      const bad = blockedBy(inn, c, id);
+      const held = c!==mine && a[c] ? P(a[c]) : null;
+      const rank = p.pos[c];
+      const cls = c===mine ? "now" : bad ? "blocked" : rank===1 ? "r1" : rank>1 ? "r2" : "";
+      return `<button class="${cls}" ${bad?"disabled":`data-act="bpset" data-c="${c}"`}>${c}
+        <span>${c===mine ? "NOW" : bad ? "BLOCKED"
+          : held ? "⇄ " + esc(last(held.name)).slice(0,5).toUpperCase()
+          : rank ? ord(rank) : depthAt(c).length ? "OFF CHART" : "OPEN"}</span>
+      </button>`;
+    }).join("") + `</div>` +
+    (mine ? `<button class="btn wide" style="width:100%;margin-top:10px" data-act="bpclear">
+        Take ${esc(last(p.name))} off the field this inning</button>` : "") +
+    `<div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
+      Positions already filled this inning aren't shown. To move someone into a taken
+      spot, clear the player who has it first.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
+
+/* The tracker is a VIEW, not state: timeFor() already derives innings-per-position
+   from the assignment grid, so this moves the instant a cell changes and can never
+   drift from the lineup it describes. Zero prints as a dim dot so the numbers that
+   matter carry the ink. */
+function renderTracker(){
+  $("tracker").innerHTML = trackerHTML(false);
+  const rows = here();
+  const spread = rows.map(p=>timeFor(p.id).total);
+  const target = G.innings * 9 / Math.max(1, rows.length);
+  $("trkNote").textContent = rows.length
+    ? `${Math.min(...spread)}–${Math.max(...spread)} innings · ${Math.round(target*10)/10} is an even share`
+    : "";
+}
+function trackerHTML(season){
+  const rows = here();
+  const totals = rows.map(p=> season ? seasonFor(p.id).total : timeFor(p.id).total);
+  const target = season ? (totals.reduce((a,b)=>a+b,0) / Math.max(1, rows.length))
+                        : G.innings * 9 / Math.max(1, rows.length);
+  let h = `<table class="trk"><thead><tr><th class="who"></th>${
+    POSK.map(c=>`<th>${c}</th>`).join("")}<th class="tot">TOT</th></tr></thead><tbody>`;
+  h += rows.map(p=>{
+    const t = season ? seasonFor(p.id) : timeFor(p.id);
+    const lo = t.total < Math.floor(target);
+    return `<tr><td class="who">${p.num!==""?`<span class="faint tnum">${esc(p.num)}</span> `:""}${
+      esc(last(p.name))}</td>` +
+      POSK.map(c=>`<td class="${t.byPos[c]?"has":""}">${t.byPos[c] || "·"}</td>`).join("") +
+      `<td class="tot ${lo?"lo":""}">${t.total}</td></tr>`;
+  }).join("") + `</tbody></table>`;
+  return rows.length ? h : `<div class="faint" style="font-size:.78rem">Nobody marked present.</div>`;
+}
+
 /* ---------------- DEPTH ---------------- */
 function renderDepth(){
   document.querySelectorAll('[data-act="dview"]').forEach(b=>
@@ -1392,25 +2174,46 @@ function renderDepth(){
             ${p.present?"HERE":"OUT"}</button>
         </div>
         <div class="poschips">${POSK.map(c=>
-          `<button class="pc ${p.pos[c]===1?"r1":p.pos[c]===2?"r2":""}"
-            data-act="rank" data-id="${p.id}" data-c="${c}">${c}</button>`).join("")}</div>
+          `<button class="pc ${p.pos[c]===1?"r1":p.pos[c]>1?"r2":""}"
+            data-act="rank" data-id="${p.id}" data-c="${c}">${c}${
+            p.pos[c] ? `<span class="rk">${p.pos[c]}</span>` : ""}</button>`).join("")}</div>
       </div>`).join("") +
       `<div class="faint" style="font-size:.64rem;line-height:1.55;padding:2px 4px">
-        Tap a position to cycle it: <span style="color:var(--foul)">can play</span> →
-        <span style="color:var(--strike)">primary</span> → off. Auto-fill sends players to their
-        primary spots first, then fills the gaps by who's owed innings.</div>`;
+        Tap a position to put this player on its chart; the small number is how deep he
+        sits there. <span style="color:var(--strike)">Green is 1st choice</span>. Tap again to
+        take him off. To change the order at a position, use BY POSITION.</div>`;
   }else{
+    /* Nine ordered lists, one per position — the same row, handle and remove
+       controls as the batting order, because it is the same job: arrange people
+       in a sequence. Reusing the pattern means one thing to learn, and the drag
+       controller is literally the same code. */
     $("depthBody").innerHTML = POS.map(([c,full])=>{
-      const pool = APP.roster.filter(p=>p.pos[c]>0)
-        .sort((a,b)=> a.pos[c]-b.pos[c] || last(a.name).localeCompare(last(b.name)));
+      const pool = depthAt(c);
       return `<div class="dpos">
-        <div class="h">${c} · ${full.toUpperCase()}</div>
-        <div class="dlist">${pool.length ? pool.map((p,k)=>
-          `<span class="dl r${p.pos[c]}" style="${p.present?"":"opacity:.42"}">
-            <span class="faint tnum">${k+1}</span> ${esc(last(p.name))}${p.present?"":" ·out"}</span>`).join("")
-          : `<span class="faint" style="font-size:.72rem">Nobody assigned — auto-fill will grab whoever's free.</span>`}</div>
+        <div class="h"><span>${c} · ${full.toUpperCase()}</span>
+          <span class="deep">${pool.length ? pool.length+" DEEP" : "EMPTY"}</span></div>
+        <div data-sortable="depth" data-sortkey="${c}">${pool.map((p,k)=>`
+          <div class="ord dchart" data-sortrow>
+            <button class="grip" data-act="nop" aria-label="Reorder ${esc(label(p))} at ${c}">
+              <svg width="13" height="20" viewBox="0 0 13 20" fill="currentColor" aria-hidden="true">
+                <circle cx="3" cy="4" r="1.6"/><circle cx="10" cy="4" r="1.6"/>
+                <circle cx="3" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/>
+                <circle cx="3" cy="16" r="1.6"/><circle cx="10" cy="16" r="1.6"/>
+              </svg></button>
+            <span class="slotno">${k+1}</span>
+            <span class="nm"><b>${p.num!==""?`<span class="faint tnum">#${esc(p.num)}</span> `:""}${
+              esc(firstN(p.name).charAt(0)+". "+last(p.name))}</b>
+              <span class="sub"><span class="faint tnum">${timeFor(p.id).byPos[c]||0} inn here${
+                p.present?"":" · OUT TODAY"}</span></span></span>
+            <button class="drop" data-act="depthout" data-id="${p.id}" data-c="${c}"
+              aria-label="Take ${esc(label(p))} off ${c}">−</button>
+          </div>`).join("")}</div>
+        <button class="addpos" data-act="depthadd" data-c="${c}">+ ADD PLAYER</button>
       </div>`;
-    }).join("");
+    }).join("") +
+      `<div class="faint" style="font-size:.64rem;line-height:1.55;padding:2px 4px">
+        Order is who you'd go to first. Auto-fill reads it top down, so 1st gets the
+        spot unless the strategy or a pitching rule says otherwise.</div>`;
   }
 }
 
@@ -1431,6 +2234,15 @@ function seasonFor(id){
 function renderTime(){
   document.querySelectorAll('[data-act="tview"]').forEach(b=>
     b.classList.toggle("on", b.dataset.v===UI.tview));
+  if(UI.tview==="pos"){
+    // Same matrix as the one under the lineup grid, season-wide here — one
+    // builder, two places, so the two can never tell different stories.
+    $("timeBody").innerHTML = trackerHTML(true) +
+      `<div class="faint" style="font-size:.62rem;margin-top:10px;line-height:1.5">
+        Every inning played at every position, all season. Amber totals are the players
+        furthest behind.</div>`;
+    return;
+  }
   const season = UI.tview==="season";
 
   const rows = APP.roster.map(p=>{
@@ -1513,17 +2325,38 @@ function openCell(inn, c){
   const a = A(inn), full = POS.find(x=>x[0]===c)[1], locked = !!L(inn)[c];
   $("sheetTitle").textContent = `INNING ${inn} · ${full.toUpperCase()}`;
 
-  const list = here().slice().sort((x,y)=>
-    (x.pos[c]||9)-(y.pos[c]||9) || timeFor(x.id).total - timeFor(y.id).total);
+  /* Show the players you actually carry at this position, in chart order. A list
+     of all seventeen sorted by rank technically "put the right ones on top", but
+     you still had to read past eight names who have no business there.
 
-  $("sheetBody").innerHTML = list.map(p=>{
+     Two escapes, because a filter with no way out is a trap: if nothing is
+     charted here yet there is nobody to show, so show everyone; and mid-game a
+     coach sometimes has to put a kid somewhere he isn't listed, so ALL is always
+     one tap away. */
+  const charted = here().filter(p=>p.pos[c] > 0);
+  const showAll = UI.sheetAll || !charted.length;
+  const list = (showAll ? here().slice() : charted).sort((x,y)=>
+    (x.pos[c]||99)-(y.pos[c]||99) || timeFor(x.id).total - timeFor(y.id).total);
+  const hidden = here().length - list.length;
+
+  $("sheetBody").innerHTML = `
+    <div class="pickbar">
+      <button class="${showAll?"":"on"}" ${charted.length?`data-act="sheetscope" data-v="chart"`:"disabled"}>
+        ON THE ${c} CHART<span>${charted.length}</span></button>
+      <button class="${showAll?"on":""}" data-act="sheetscope" data-v="all">
+        EVERYONE<span>${here().length}</span></button>
+    </div>` +
+    (!charted.length ? `<div class="faint" style="font-size:.62rem;margin:0 2px 9px;line-height:1.5">
+        Nobody's on the ${c} chart yet — showing everyone. Build it on the Depth tab and
+        this list gets short.</div>` : "") +
+    list.map(p=>{
     const t = timeFor(p.id), at = t.byPos[c]||0;
     const where = POSK.find(k=>a[k]===p.id);
     const isHere = a[c]===p.id;
     const bad = isHere ? null : blockedBy(inn, c, p.id);
     const sub = bad ? "Blocked by the catcher–pitcher rule"
-      : p.pos[c]===1 ? "Primary here" : p.pos[c]===2 ? "Can play here" : "Not on depth chart";
-    return `<button class="pick r${p.pos[c]} ${bad?"blocked":""}" ${bad?"":`data-act="assign"`} data-id="${p.id}"
+      : p.pos[c]===1 ? "1st choice here" : p.pos[c]>1 ? `${ord(p.pos[c])} choice here` : "Not on depth chart";
+    return `<button class="pick r${p.pos[c]===1?1:p.pos[c]>1?2:0} ${bad?"blocked":""}" ${bad?"":`data-act="assign"`} data-id="${p.id}"
         style="${isHere?"box-shadow:0 0 0 2px var(--strike)":""}">
       <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${p.num!==""?esc(p.num):"—"}</span>
       <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}
@@ -1531,7 +2364,9 @@ function openCell(inn, c){
       <span class="meta">${bad ? `caught<br>${caughtInnings(p.id)} inn`
         : `${t.total} inn<br>${at} at ${c}${where?`<br><span style="color:var(--ball)">now ${where}</span>`:""}`}</span>
     </button>`;
-  }).join("") + `
+  }).join("") +
+    (hidden > 0 ? `<div class="faint" style="font-size:.62rem;margin-top:8px;line-height:1.5">
+      ${hidden} more player${hidden===1?"":"s"} not on the ${c} chart — tap EVERYONE to see them.</div>` : "") + `
     <div class="row" style="margin-top:10px">
       <button class="btn wide" data-act="clearcell">Leave empty</button>
       <button class="btn wide ${locked?"pri":""}" data-act="locktoggle">${locked?"🔒 Locked":"Lock cell"}</button>
@@ -1542,8 +2377,155 @@ function openCell(inn, c){
 
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
-function closeSheet(){ UI.sheet=null; UI.dhPick=null;
+function closeSheet(){ UI.sheet=null; UI.dhPick=null; UI.movePick=null; UI.depthPick=null; UI.bpPick=null;
+  UI.sheetAll=false; UI.benchPick=null; UI.benchAll=false;
   $("scrim").classList.remove("on"); $("sheet").classList.remove("on"); }
+
+/* The other way onto the field: start from the player on the bench rather than
+   from an empty spot. Shows the positions HE is charted for, because that is the
+   question being asked — "where can this kid go?" — and a nine-button grid of
+   everything would bury the two or three real answers.
+
+   A spot that's occupied still shows, with whoever has it, because swapping a
+   player in is the normal mid-game move. Taking the spot sends the occupant to
+   the bench, and the toast says so by name. */
+function openBenchPick(id){
+  const p = P(id); if(!p) return;
+  UI.benchPick = id;
+  const inn = G.cur, a = A(inn);
+  const charted = POSK.filter(c=>p.pos[c] > 0);
+  const showAll = UI.benchAll || !charted.length;
+  const list = showAll ? POSK : charted;
+  const t = timeFor(id);
+  $("sheetTitle").textContent = `${label(p).toUpperCase()} · INNING ${inn}`;
+  $("sheetBody").innerHTML = `
+    <div class="pickbar">
+      <button class="${showAll?"":"on"}" ${charted.length?`data-act="benchscope" data-v="chart"`:"disabled"}>
+        HIS POSITIONS<span>${charted.length}</span></button>
+      <button class="${showAll?"on":""}" data-act="benchscope" data-v="all">ALL NINE<span>9</span></button>
+    </div>` +
+    (!charted.length ? `<div class="faint" style="font-size:.62rem;margin:0 2px 9px;line-height:1.5">
+        ${esc(last(p.name))} isn't on any depth chart yet — showing all nine. Add him on the
+        Depth tab and this becomes a short list.</div>` : "") +
+    `<div class="slotgrid pos9">` + list.map(c=>{
+      const bad = blockedBy(inn, c, id);
+      const held = P(a[c]);
+      const rank = p.pos[c];
+      const cls = bad ? "blocked" : rank===1 ? "r1" : rank>1 ? "r2" : "";
+      return `<button class="${cls}" ${bad?"disabled":`data-act="benchset" data-c="${c}"`}>${c}
+        <span>${bad ? "BLOCKED" : held ? esc(last(held.name)).slice(0,6).toUpperCase()
+               : rank ? ord(rank) : "OPEN"}</span>
+      </button>`;
+    }).join("") + `</div>
+    <div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
+      ${t.total} innings today${charted.length ? ` · charted at ${charted.join(", ")}` : ""}.
+      A name under a position means someone's there now — tapping it swaps them out.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
+
+/* Load a lineup. Last game sits at the top because "same as last time" is the
+   common answer, and it is the one thing a coach can always reach for without
+   having thought to save anything. */
+function openLoadLineup(){
+  const lastG = lastGameLineup();
+  const rows = [];
+  const nameOf = ids => ids.slice(0,4).map(id=>last(P(id)?.name||"?")).join(", ")
+    + (ids.length > 4 ? ` +${ids.length-4}` : "");
+
+  if(lastG) rows.push(`<button class="pick" data-act="loadlast">
+      <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.9rem">↺</span>
+      <span class="nm">Last game${lastG.opp?` · ${esc(lastG.opp)}`:""}
+        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+          lastG.snap.order.length} batting · ${esc(nameOf(lastG.snap.order))}</span></span>
+      <span class="meta">${esc(lastG.date||"")}</span>
+    </button>`);
+
+  /* Delete sits OUTSIDE the load row, as its own 44px button. Nested inside it
+     was an 11px destructive target touching a much larger "load" one — the exact
+     way neighbours steal taps, and with the dangerous action as the small half. */
+  rows.push(...APP.saved.map((L,i)=>`<div class="pickrow">
+      <button class="pick" data-act="loadsaved" data-i="${i}" style="margin:0">
+        <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.9rem">📋</span>
+        <span class="nm">${esc(L.name)}
+          <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+            L.order.length} batting · ${esc(nameOf(L.order))}</span></span>
+      </button>
+      <button class="killbtn" data-act="dropsaved" data-i="${i}"
+        aria-label="Delete the saved lineup ${esc(L.name)}">✕</button>
+    </div>`));
+
+  $("sheetTitle").textContent = "LOAD A LINEUP";
+  $("sheetBody").innerHTML = (rows.length ? rows.join("") :
+    `<div class="faint" style="font-size:.78rem;padding:4px;line-height:1.55">
+       Nothing saved yet, and no previous game to borrow from. Build a lineup and tap
+       <b>Save</b> — it'll be here next week.</div>`) +
+    `<div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
+      Loading brings the batting order and the defence, not pitch counts or at-bats.
+      Anyone who has left the roster or isn't here today is dropped and named.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
+
+/* Report what a load actually did. A lineup that quietly fields a kid who went
+   home is worse than no lineup, so the dropouts are the headline. */
+function afterLoad(res, what){
+  save(); render();
+  toast(res.dropped.length
+    ? `${what} — ${res.dropped.join(", ")} not available, left out`
+    : `${what} — ${res.batting} batting`);
+}
+
+/* Adding to a position chart. Only players not already on it, ordered by who has
+   the fewest innings there, so the sheet leads with the kid you are most likely
+   trying to develop rather than making you hunt. */
+function openDepthPick(c){
+  UI.depthPick = c;
+  const full = POS.find(x=>x[0]===c)[1];
+  const on = new Set(depthAt(c).map(p=>p.id));
+  const pool = APP.roster.filter(p=>!on.has(p.id))
+    .sort((a,b)=> (timeFor(a.id).byPos[c]||0) - (timeFor(b.id).byPos[c]||0)
+                || timeFor(a.id).total - timeFor(b.id).total);
+  $("sheetTitle").textContent = `ADD TO ${full.toUpperCase()}`;
+  $("sheetBody").innerHTML = pool.length ? pool.map(p=>{
+    const t = timeFor(p.id);
+    return `<button class="pick" data-act="depthpick" data-id="${p.id}">
+      <span class="jersey" style="flex:0 0 34px;height:34px;font-size:.85rem">${p.num!==""?esc(p.num):"—"}</span>
+      <span class="nm">${esc(firstN(p.name)+" "+last(p.name))}
+        <span class="faint" style="font-size:.6rem;display:block;font-weight:400">${
+          p.present ? `${t.total} inn today` : "Not here today"}</span></span>
+      <span class="meta">${t.byPos[c]||0}<br>inn ${c}</span>
+    </button>`;
+  }).join("") : `<div class="faint" style="font-size:.78rem;padding:4px">
+      Everyone on the roster is already on this chart.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
+
+/* Move a batter to any slot in two taps. The grid shows every position with the
+   player currently there, so the choice is made against the real order rather
+   than from memory — and the batter's own slot is marked, so "no change" is a
+   visible option rather than a guess. */
+function openMovePick(id){
+  const p = P(id); if(!p) return;
+  const from = G.order.indexOf(id); if(from < 0) return;
+  UI.movePick = {id};
+  $("sheetTitle").textContent = `MOVE ${label(p).toUpperCase()} — NOW BATTING ${from+1}`;
+  $("sheetBody").innerHTML =
+    `<div class="slotgrid">` + G.order.map((_,k)=>{
+      // Who sits at slot k once this player is pulled out of the list.
+      const rest = G.order.filter(x=>x!==id);
+      const occupant = k === from ? p : P(rest[k]) || null;
+      return `<button class="${k===from?"now":""}" data-act="moveto" data-k="${k}">${k+1}
+        <span>${k===from ? "NOW" : esc((last(occupant?.name||"")||"—").slice(0,6).toUpperCase())}</span>
+      </button>`;
+    }).join("") + `</div>
+    <div class="row" style="margin-top:11px">
+      <button class="btn wide" data-act="batnext" data-id="${id}">Bat him next</button>
+      <button class="btn wide" data-act="ordout" data-id="${id}">Take out of order</button>
+    </div>
+    <div class="faint" style="font-size:.62rem;margin-top:10px;line-height:1.5">
+      The name under each number is who bats there after the move. Dragging the
+      handle does the same thing for a slot or two.</div>`;
+  $("scrim").classList.add("on"); $("sheet").classList.add("on");
+}
 
 /* Two-step picker: who hits, then who he hits for. Kept as two steps because
    picking a pair in one list is where these UIs usually go wrong. */
@@ -1582,7 +2564,7 @@ const ACT = {
   tab(el){ UI.tab = el.dataset.tab;
     ["field","lineup","arms","depth","time","notes","set"].forEach(t=>
       $("tab-"+t).classList.toggle("hide", t!==UI.tab));
-    document.querySelectorAll("nav button").forEach(b=>
+    document.querySelectorAll("nav.tabbar button").forEach(b=>
       b.classList.toggle("on", b.dataset.tab===UI.tab));
     window.scrollTo(0,0); render();
   },
@@ -1599,10 +2581,12 @@ const ACT = {
     if(bad){ toast(bad.split(" — ")[0] + " — blocked"); return; }
     snap();
     const a = A(inn), from = POSK.find(k=>a[k]===id), displaced = a[c];
-    if(from){ if(displaced && displaced!==id) a[from]=displaced; else delete a[from]; }
-    a[c] = id;
+    // A trade when he was already on the field, so the other man takes the spot
+    // just vacated rather than being dropped.
+    if(from){ if(displaced && displaced!==id) setPos(inn, from, displaced); else setPos(inn, from, null); }
+    setPos(inn, c, id);
     L(inn)[c] = true;
-    if(from && a[from]) L(inn)[from] = true;
+    if(from && A(inn)[from]) L(inn)[from] = true;
     // NFHS 3-1-4: a ten-player DH who takes a defensive position ends the role.
     // A P/DH is already a fielder, so this never applies to him.
     const dh = dhLive();
@@ -1614,7 +2598,28 @@ const ACT = {
     save(); closeSheet(); render();
   },
   planpick(el){ openCell(+el.dataset.i, "P"); },
-  clearcell(){ const {inn,c}=UI.sheet; snap(); delete A(inn)[c]; delete L(inn)[c];
+  benchpick(el){ UI.benchAll = false; openBenchPick(el.dataset.id); },
+  benchscope(el){ UI.benchAll = el.dataset.v === "all"; openBenchPick(UI.benchPick); },
+  benchset(el){
+    const id = UI.benchPick, c = el.dataset.c;
+    closeSheet();
+    if(!id) return;
+    snap();
+    const a = A(G.cur);
+    const outgoing = a[c] && a[c] !== id ? P(a[c]) : null;
+    benchFrom(G.cur, id);                              // he can only be in one place
+    setPos(G.cur, c, id);
+    save(); render();
+    toast(outgoing ? `${last(P(id).name)} to ${c} — ${last(outgoing.name)} to the bench`
+                   : `${last(P(id).name)} to ${c}`);
+  },
+  sheetscope(el){
+    UI.sheetAll = el.dataset.v === "all";
+    const {inn, c} = UI.sheet; openCell(inn, c);
+  },
+  /* Clearing a spot is a sub-out, so it carries forward like any other change
+     rather than letting the next inning re-inherit the man just removed. */
+  clearcell(){ const {inn,c}=UI.sheet; snap(); setPos(inn, c, null); delete L(inn)[c];
     save(); closeSheet(); render(); },
   locktoggle(){ const {inn,c}=UI.sheet; const lk=L(inn);
     if(lk[c]) delete lk[c]; else lk[c]=true; save(); openCell(inn,c); renderLineup(); },
@@ -1643,11 +2648,6 @@ const ACT = {
   },
   skip(){ const n=G.order.length; if(!n) return; snap();
     G.atBat=(G.atBat+1)%n; save(); render(); },
-  setab(el){ snap(); G.atBat = +el.dataset.k % Math.max(1,G.order.length); save(); render(); },
-  ordup(el){ const k=+el.dataset.k; if(k<1) return; snap();
-    [G.order[k-1],G.order[k]]=[G.order[k],G.order[k-1]]; save(); renderLineup(); },
-  orddn(el){ const k=+el.dataset.k; if(k>=G.order.length-1) return; snap();
-    [G.order[k+1],G.order[k]]=[G.order[k],G.order[k+1]]; save(); renderLineup(); },
   autoorder(){ snap();
     const dh = dhLive();
     let pool = here().map(p=>p.id);
@@ -1660,7 +2660,6 @@ const ACT = {
   size(el){
     const n = +el.dataset.n;
     snap();
-    G.size = n;
     if(G.order.length > n) G.order = G.order.slice(0, n);
     else {
       const dh = dhLive();
@@ -1671,11 +2670,129 @@ const ACT = {
         G.order.push(p.id);
       });
     }
+    G.size = G.order.length;
     if(G.order.length) G.atBat = G.atBat % G.order.length;
     save(); render();
-    const short = n - G.order.length;
-    toast(short > 0 ? `Batting ${G.order.length} — ${short} more player${short===1?"":"s"} needed`
-                    : n===9 ? "Batting 9 — no extra hitters" : `Batting ${n} — ${n-9} ${EH_LABEL}`);
+    toast(G.order.length===9 ? "Batting 9 — no extra hitters"
+                             : `Batting ${G.order.length} — ${G.order.length-9} ${EH_LABEL}`);
+  },
+  /* In and out of the order, one tap each. Removing is reversible and frequent,
+     so it takes an undo rather than a confirmation dialog — a prompt on every
+     lineup tweak would be the bigger annoyance, and ↺ is already in the header. */
+  ordout(el){
+    closeSheet();
+    const id = el.dataset.id, p = P(id);
+    const k = G.order.indexOf(id); if(k < 0) return;
+    snap();
+    G.order.splice(k, 1);
+    G.size = G.order.length;
+    if(G.order.length) G.atBat = G.atBat % G.order.length;
+    save(); render();
+    toast(`${last(p?.name||"Player")} out of the order — ↺ to undo`);
+  },
+  ordin(el){
+    const id = el.dataset.id, p = P(id);
+    if(G.order.includes(id)) return;
+    snap();
+    G.order.push(id);
+    G.size = G.order.length;
+    save(); render();
+    toast(`${last(p?.name||"Player")} batting ${G.order.length}`);
+  },
+  /* The row is the biggest target on the screen, so it gets the action a coach
+     actually repeats mid-game: put the order back in sync with the field. */
+  nop(){},
+  loadlineup(){ openLoadLineup(); },
+  loadlast(){
+    const L = lastGameLineup(); closeSheet();
+    if(!L) return;
+    afterLoad(applyLineup(L.snap), "Loaded last game's lineup");
+  },
+  loadsaved(el){
+    const L = APP.saved[+el.dataset.i]; closeSheet();
+    if(!L) return;
+    afterLoad(applyLineup(L), `Loaded "${L.name}"`);
+  },
+  dropsaved(el){
+    const i = +el.dataset.i, L = APP.saved[i];
+    if(!L || !confirm(`Delete the saved lineup "${L.name}"?`)) return;
+    APP.saved.splice(i, 1); save(); openLoadLineup();
+  },
+  savelineup(){
+    if(!G.order.length){ toast("Nothing to save yet"); return; }
+    const dflt = G.opp ? `vs ${G.opp}` : `Lineup ${APP.saved.length + 1}`;
+    const name = (prompt("Name this lineup", dflt) || "").trim();
+    if(!name) return;
+    const snapshot = Object.assign({name, date:G.date}, lineupSnapshot());
+    const at = APP.saved.findIndex(L=>L.name.toLowerCase() === name.toLowerCase());
+    if(at >= 0){
+      if(!confirm(`"${name}" already exists. Replace it?`)) return;
+      APP.saved[at] = snapshot;
+    }else APP.saved.push(snapshot);
+    save(); renderLineup();
+    toast(`Saved "${name}"`);
+  },
+  cardscope(el){ UI.cardAll = el.dataset.v === "all"; renderLineup(); },
+  strat(el){ G.strategy = el.dataset.k; save(); renderLineup();
+    toast(strat().label + " — tap Auto-fill to apply"); },
+  bppick(el){ openByPlayerPick(el.dataset.id); },
+  bpset(el){
+    const id = UI.bpPick, c = el.dataset.c;
+    closeSheet();
+    if(!id) return;
+    snap();
+    const a = A(G.cur);
+    const from = POSK.find(k=>a[k]===id) || null;     // where he is now, if anywhere
+    const other = a[c] && a[c] !== id ? a[c] : null;  // who holds the spot he wants
+    if(from === c) return;                            // already there
+
+    setPos(G.cur, c, id);
+    // He came off the field, so there is a spot to hand back — a real trade. If he
+    // came off the bench there is nowhere to put the other man, and he is benched.
+    if(from) setPos(G.cur, from, other && from ? other : null);
+
+    save(); render();
+    toast(other ? (from ? `${last(P(id).name)} ⇄ ${last(P(other).name)}`
+                        : `${last(P(id).name)} to ${c} — ${last(P(other).name)} to the bench`)
+                : `${last(P(id)?.name||"He")} at ${c}, inning ${G.cur}`);
+  },
+  bpclear(){
+    const id = UI.bpPick;
+    closeSheet();
+    if(!id) return;
+    snap();
+    benchFrom(G.cur, id);
+    save(); render();
+    toast(`${last(P(id)?.name||"He")} off the field from inning ${G.cur} on`);
+  },
+  movepick(el){ openMovePick(el.dataset.id); },
+  moveto(el){
+    const to = +el.dataset.k, id = UI.movePick && UI.movePick.id;
+    closeSheet();
+    if(!id) return;
+    const from = G.order.indexOf(id);
+    if(from < 0 || to === from) return;
+    snap();
+    const atBatId = G.order[G.atBat];
+    G.order.splice(from, 1);
+    G.order.splice(to, 0, id);
+    const back = G.order.indexOf(atBatId);
+    if(back >= 0) G.atBat = back;
+    save(); render();
+    toast(`${last(P(id)?.name||"He")} batting ${to+1}`);
+  },
+  batnext(el){
+    closeSheet();
+    const k = G.order.indexOf(el.dataset.id);
+    if(k < 0 || k === G.atBat) return;
+    snap(); G.atBat = k; save(); render();
+    toast(`${last(P(G.order[k])?.name||"He")} up next`);
+  },
+  batfrom(el){
+    const k = +el.dataset.k;
+    if(!(k >= 0) || k === G.atBat) return;
+    snap(); G.atBat = k; save(); render();
+    toast(`${last(P(G.order[k])?.name||"He")} up next`);
   },
 
   dhadd(el){
@@ -1753,11 +2870,33 @@ const ACT = {
   tview(el){ UI.tview = el.dataset.v; renderTime(); },
 
   /* ---- depth chart ---- */
+  /* On the chart or off it. Depth ORDER is set by dragging in BY POSITION, so
+     this side only has to answer the yes/no question and append to the bottom. */
   rank(el){
     const p = P(el.dataset.id), c = el.dataset.c;
     snap();
-    p.pos[c] = p.pos[c]===2 ? 1 : p.pos[c]===1 ? 0 : 2;   // can play → primary → off
+    const ids = depthAt(c).map(x=>x.id);
+    const at = ids.indexOf(p.id);
+    if(at >= 0) ids.splice(at, 1); else ids.push(p.id);
+    reseat(c, ids);
     save(); renderDepth();
+  },
+  depthout(el){
+    const c = el.dataset.c, id = el.dataset.id;
+    snap();
+    reseat(c, depthAt(c).map(x=>x.id).filter(x=>x!==id));
+    save(); renderDepth();
+    toast(`${last(P(id)?.name||"He")} off the ${c} chart — ↺ to undo`);
+  },
+  depthadd(el){ openDepthPick(el.dataset.c); },
+  depthpick(el){
+    const c = UI.depthPick, id = el.dataset.id;
+    closeSheet();
+    if(!c) return;
+    snap();
+    reseat(c, depthAt(c).map(x=>x.id).concat(id));
+    save(); renderDepth();
+    toast(`${last(P(id)?.name||"He")} is ${ord(depthAt(c).length)} at ${c}`);
   },
   present(el){
     const p = P(el.dataset.id);
@@ -1806,7 +2945,12 @@ const ACT = {
     snap();
     APP.hist.push(JSON.parse(JSON.stringify(G)));
     APP.game = G = freshGame(APP.roster, G);
-    save(); render(); toast("Game saved to season history");
+    save(); render();
+    /* The one moment the offer is worth interrupting for: the game just banked
+       IS the lineup you'd most likely reuse, and hunting for a button after the
+       fact is the friction this whole feature exists to remove. Dismissible. */
+    if(lastGameLineup()){ UI.tab = "lineup"; render(); openLoadLineup(); }
+    else toast("Game saved to season history");
   },
   reset(){
     if(!confirm("Reset this game? Clears the grid, at-bats, pitch counts and notes.")) return;
@@ -1851,7 +2995,12 @@ const ACT = {
      have your whole setup, offline. */
   saveAsHTML(){
     pageSource().then(src=>{
-      const seedData = { roster: APP.roster.map(p=>({id:p.id,num:p.num,name:p.name,pos:p.pos,present:true})) };
+      const seedData = {
+        roster: APP.roster.map(p=>({id:p.id,num:p.num,name:p.name,pos:p.pos,present:true})),
+        // Saved lineups point at player ids, and the roster above carries the same
+        // ids, so they survive the move to another device intact.
+        saved: APP.saved
+      };
       // The marker is assembled from pieces on purpose. If the literal appeared
       // here in one piece, this line would be the FIRST match in the page source
       // and the export would overwrite its own exporter instead of the boot seed.
@@ -1860,7 +3009,7 @@ const ACT = {
       // Test for the marker rather than comparing before/after: re-exporting an
       // unchanged roster produces an identical file, which is success, not failure.
       if(!re.test(src)){ toast("Save error — marker not found"); return; }
-      const out = src.replace(re, seed);
+      const out = absoluteTrackerLink(src.replace(re, seed));
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([out],{type:"text/html"}));
       a.download = "nova-lineup.html"; a.click();
@@ -1907,6 +3056,163 @@ function pageSource(){
   return fetch(location.href).then(r=>r.text()).catch(()=>snapshotDOM());
 }
 
+/* The saved copy travels alone — it lands in Downloads or the Files app with
+   no index.html beside it, so the app switcher's relative link to the tracker
+   would dead-end. Exporting from the web, we know where the real tracker
+   lives, so point the saved copy back at it: offline it's just a link that
+   needs signal, and with signal it opens the actual tracker.
+
+   Exported from a file:// copy there's no origin worth baking in, so the
+   markup is left exactly as it is — which is right in the one case where a
+   relative link still works: both files sitting in the same folder.
+
+   `replace` takes the FIRST match, which is the header markup near the top of
+   the document — this function's own source, pattern included, sits far below
+   it in the same file. Same hazard the SEED marker above is assembled to
+   dodge, resolved here by document order. */
+function absoluteTrackerLink(src){
+  if(!/^https?:$/.test(location.protocol)) return src;
+  let abs;
+  try{ abs = new URL("index.html", location.href).href; }catch(e){ return src; }
+  return src.replace(/<a href="index\.html"/, '<a href="' + abs + '"');
+}
+
+/* ---------------------------------------------------------------------
+   Dragging a batting slot
+
+   Pointer events rather than HTML5 drag-and-drop, which is unreliable on
+   touch; and bound to the handle alone, because a seventeen-row list has to
+   stay scrollable. The rows in between shift as you go, so where the player
+   will land is visible before you let go rather than after.
+
+   Reordering keeps the same kid at the plate: the at-bat marker follows the
+   player, not the slot number he used to occupy.
+   --------------------------------------------------------------------- */
+(function reorder(){
+  let st = null;
+
+  document.addEventListener("pointerdown", e=>{
+    const grip = e.target.closest(".grip");
+    if(!grip) return;
+    const list = grip.closest("[data-sortable]");
+    if(!list) return;
+    const row = grip.closest("[data-sortrow]"); if(!row) return;
+    e.preventDefault();
+    const rows = [...list.querySelectorAll("[data-sortrow]")];
+    const from = rows.indexOf(row);
+    const step = rows.length > 1
+      ? rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top
+      : row.getBoundingClientRect().height;
+    st = { row, rows, from, to:from, step, y0:e.clientY, lastY:e.clientY, scroll:0, raf:0,
+           kind: list.dataset.sortable, key: list.dataset.sortkey || "" };
+    try{ grip.setPointerCapture(e.pointerId); }catch(_){}
+    row.classList.add("dragging");
+    rows.forEach(r=>{ if(r !== row) r.classList.add("shift"); });
+    if(navigator.vibrate) navigator.vibrate(8);
+  }, {passive:false});
+
+  /* Seventeen rows are taller than the screen, so a drag from the bottom of the
+     order to the top has to bring the page with it: hold near either edge and it
+     scrolls, faster the closer you get. Without this, any move longer than a
+     screen is impossible rather than merely awkward. */
+  const EDGE = 90, MAX_SPEED = 14;
+  function autoScroll(y){
+    const top = y - EDGE, bot = (window.innerHeight - 64) - y;   // 64 = tab bar
+    let v = 0;
+    if(top < 0) v = Math.max(-MAX_SPEED, top / EDGE * MAX_SPEED);
+    else if(bot < 0) v = Math.min(MAX_SPEED, -bot / EDGE * MAX_SPEED);
+    if(!v){ st.scroll = 0; return; }
+    st.scroll = v;
+    if(!st.raf){
+      const tick = ()=>{
+        if(!st || !st.scroll){ if(st) st.raf = 0; return; }
+        const y0 = window.scrollY;
+        window.scrollBy(0, st.scroll);
+        // The finger hasn't moved, but the page under it has, so the drag
+        // origin has to move with it or the row snaps back as you scroll.
+        st.y0 -= (window.scrollY - y0);
+        place();
+        st.raf = requestAnimationFrame(tick);
+      };
+      st.raf = requestAnimationFrame(tick);
+    }
+  }
+
+  function place(){
+    if(!st) return;
+    const dy = st.lastY - st.y0;
+    st.row.style.transform = `translateY(${dy}px)`;
+    const to = Math.max(0, Math.min(st.rows.length - 1, st.from + Math.round(dy / st.step)));
+    if(to === st.to) return;
+    st.to = to;
+    st.rows.forEach((r,i)=>{
+      if(r === st.row) return;
+      const shift = (st.from < to && i > st.from && i <= to) ? -st.step
+                  : (st.from > to && i >= to && i < st.from) ?  st.step : 0;
+      r.style.transform = shift ? `translateY(${shift}px)` : "";
+    });
+    if(navigator.vibrate) navigator.vibrate(4);
+  }
+
+  document.addEventListener("pointermove", e=>{
+    if(!st) return;
+    e.preventDefault();
+    st.lastY = e.clientY;
+    place();
+    autoScroll(e.clientY);
+  }, {passive:false});
+
+  /* What a finished drag MEANS depends on the list. The gesture, the auto-scroll
+     and the shuffle are identical either way, so they stay here and only the
+     commit is per-list. Adding a third sortable list is a new entry, not a second
+     copy of the drag code. */
+  const COMMIT = {
+    /* Works off the ids in the rendered rows, not their position in them, because
+       the card can be showing a SUBSET — collapse-to-starters hides the extra
+       hitters. Dropping row 3 onto row 5 of a filtered list means "put him next
+       to that player in the real order", which is well defined either way;
+       treating the rendered index as the batting slot would silently scramble a
+       filtered lineup. */
+    order(from, to, key, rows){
+      const ids = rows.map(r => r.dataset.id);
+      const moved = ids[from], anchor = ids[to];
+      if(!moved || !anchor) return;
+      snap();
+      const atBatId = G.order[G.atBat];
+      G.order.splice(G.order.indexOf(moved), 1);
+      const at = G.order.indexOf(anchor);
+      G.order.splice(from > to ? at : at + 1, 0, moved);
+      // The marker follows the player, not the slot number he used to hold.
+      const back = G.order.indexOf(atBatId);
+      if(back >= 0) G.atBat = back;
+      save(); render();
+      toast(`${last(P(moved)?.name || "He")} batting ${G.order.indexOf(moved) + 1}`);
+    },
+    depth(from, to, c){
+      snap();
+      const ids = depthAt(c).map(p=>p.id);
+      const [id] = ids.splice(from, 1);
+      ids.splice(to, 0, id);
+      reseat(c, ids);
+      save(); render();
+      toast(`${last(P(id)?.name || "He")} is ${ord(to + 1)} at ${c}`);
+    }
+  };
+
+  function end(){
+    if(!st) return;
+    const { row, rows, from, to, raf, kind, key } = st;
+    if(raf) cancelAnimationFrame(raf);
+    st = null;
+    row.classList.remove("dragging"); row.style.transform = "";
+    rows.forEach(r=>{ r.classList.remove("shift"); r.style.transform = ""; });
+    if(to === from) return;
+    (COMMIT[kind] || (()=>{}))(from, to, key, rows);
+  }
+  document.addEventListener("pointerup", end);
+  document.addEventListener("pointercancel", end);
+})();
+
 /* =====================================================================
    EVENT WIRING
    One click listener for the whole app (delegation), one input listener
@@ -1948,24 +3254,42 @@ document.addEventListener("input", e=>{
 
 /* =====================================================================
    BOOT
-   Order of preference: this device's saved state → a roster baked into
-   the file by "Save as HTML" → the roster carried over from the Pitch
-   Tracker.
+   First settle which team we're on — the tracker decides, when it's there —
+   because that picks the storage key everything else reads and writes.
+
+   Then, for the roster: this team's saved lineup → a roster baked into the
+   file by "Save as HTML" → the tracker's roster for this team → the roster
+   compiled into this file.
    ===================================================================== */
 /*SEED*/var SEED_SAVED = null;/*ENDSEED*/
 
 (function boot(){
+  const teams = trackerTeams();
+  adoptLegacySave(teams);
+  TEAM = trackerTeam();
+  renderTeamBadge();
+
+  let joined = [];
   if(!load()){
-    APP.roster = SEED_SAVED
-      ? SEED_SAVED.roster.map(p=>Object.assign(freshPlayer(p), p, {present:true}))
-      : SEED_ROSTER.map(freshPlayer);
+    if(SEED_SAVED && SEED_SAVED.saved) APP.saved = SEED_SAVED.saved;
+    const carried = SEED_SAVED ? SEED_SAVED.roster
+                  : (TEAM && TEAM.roster.length) ? TEAM.roster
+                  : SEED_ROSTER;
+    // A baked-in save carries depth-chart ranks with each player; a roster
+    // from the tracker is just names and numbers, so it starts from defaults.
+    APP.roster = carried.map(p=>Object.assign(freshPlayer(p), p, {present:true}));
     APP.game = freshGame(APP.roster);
     APP.hist = [];
     save();
   }
   G = APP.game;
   if(!G.order.length) G.order = here().map(p=>p.id).slice(0, G.size);
+  joined = syncFromTracker();
+  if(normalizeDepth()) save();
   render();
+  // Say it out loud. A player quietly appearing in a list is a player the
+  // coach doesn't know he has.
+  if(joined.length) toast(`Added from the tracker: ${joined.map(p=>last(p.name)).join(", ")}`);
 })();
 </script>
 </body>
