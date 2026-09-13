@@ -459,6 +459,10 @@
   .rrow .del{flex:0 0 36px;height:36px;border-radius:8px;background:var(--navy-850);border:1px solid var(--hit-d);color:var(--hit)}
 
   /* ---------- ARMS tab: pitching rotation ---------- */
+  /* Amber, not red: this is "look at this", not "this is broken". It sits under
+     the diamond because that's where the state gets made. */
+  .notebox{background:#2a1e0c;border:1px solid var(--ball-d);border-radius:var(--r-sm);
+    padding:9px 11px;margin:9px 0 2px;font-size:.7rem;line-height:1.5;color:#ffe2ab}
   .warnbox{background:#2a1116;border:1px solid var(--hit-d);border-radius:var(--r);padding:11px 13px;margin-bottom:12px}
   .warnbox .h{font-size:.58rem;letter-spacing:1.5px;color:var(--hit);font-weight:800;margin-bottom:7px}
   .warnbox ul{margin:0;padding-left:16px}
@@ -569,6 +573,7 @@
     <div class="card" style="padding:10px">
       <div class="seclab" id="fieldLab">DEFENSE · INNING 1</div>
       <div class="field" id="field"><div class="infieldline"></div></div>
+      <div id="fieldWarn"></div>
       <div class="benchstrip" id="bench"></div>
     </div>
 
@@ -1445,6 +1450,41 @@ function roleIn(inn, id){
   if(!batters().includes(id)) return "—";
   return POSK.filter(k=>a[k]).length === 9 ? EH_LABEL : "—";
 }
+/* Players holding a position who aren't in the batting order — which is to say,
+   not in the game at all. A substitution can no longer create this (the field tab
+   hands over the batting slot now), but dropping someone into an EMPTY spot still
+   can, so the app says it out loud instead of letting it pass for a lineup. The
+   DEFO is the one legal exception: a DH bats for him, so he fields without batting
+   on purpose. */
+/* Bringing someone on from off the roster-in-the-game is a SUBSTITUTION, not a
+   position change: he isn't in the batting order, and the man whose spot he takes
+   is. One question, asked the same way from both field-tab paths. */
+function isSubstitution(inn, c, inId){
+  const a = A(inn), outId = a[c];
+  if(!outId || outId === inId) return null;
+  if(posOf(inn, inId)) return null;              // already on the field: a trade
+  if(batters().includes(inId)) return null;      // already in the game: just a move
+  if(!batters().includes(outId)) return null;    // neither is batting: nothing to inherit
+  if(dhLocked(inId) || dhLocked(outId)) return null;
+  return outId;
+}
+
+function unbatted(inn){
+  const a = A(inn), bats = new Set(batters()), dh = dhLive();
+  return POSK.filter(c => a[c] && !bats.has(a[c])
+                       && !(dh && dh.mode==="ten" && a[c]===dh.forId))
+             .map(c => ({c, p:P(a[c])})).filter(x => x.p);
+}
+function unbattedNote(inn){
+  const rows = unbatted(inn);
+  if(!rows.length) return "";
+  const who = rows.map(x=>`${esc(last(x.p.name))} at ${x.c}`).join(" · ");
+  const him = rows.length===1 ? "him" : "them";
+  return `${who} — fielding, but not in the batting order, so not in the game.
+    <b>⇄ SWAP</b> on the Lineup tab bats ${him} into somebody's slot; <b>+ ADD</b>
+    puts ${him} at the bottom of the order.`;
+}
+
 /* His standing at a position, for the pick lists — and only when there IS a chart
    to have a standing in. An empty chart means every player would wear the red
    "off chart" stripe, which reports a judgement nobody has made yet. */
@@ -1822,6 +1862,9 @@ function renderField(){
     </button>`;
   }).join("");
 
+  const note = unbattedNote(G.cur);
+  $("fieldWarn").innerHTML = note ? `<div class="notebox">⚠ ${note}</div>` : "";
+
   const b = benchFor(G.cur);
   $("bench").innerHTML = b.length
     ? `<span class="faint" style="font-size:.6rem;letter-spacing:1.5px;align-self:center">BENCH</span>` +
@@ -2082,6 +2125,8 @@ function renderLineup(){
   if(n > 9 && posFilled === 9)
     notes.push(`Badges show this inning's role. ${n-9} ${EH_LABEL} bat${n-9===1?"s":""} without fielding, and which player that is rotates each inning.`);
   if(dh && dh.mode==="ten") notes.push(`${esc(last(P(dh.forId)?.name||""))} fields but doesn't bat — the DH holds his slot.`);
+  const stray = unbattedNote(G.cur);
+  if(stray) notes.push(`<span style="color:var(--ball)">⚠ ${stray}</span>`);
   notes.push(`Drag the handle to reorder the batting order · tap the <b>number</b> to move or remove him · tap the <b>position</b> to swap where he fields or sub someone in for him · <b>BE</b> empties his slot · ↺ undoes any of it.`);
   $("orderNote").innerHTML = `<div class="faint" style="font-size:.62rem;margin-top:9px;line-height:1.55">${notes.join("<br>")}</div>`;
 
@@ -2625,19 +2670,25 @@ function openBenchPick(id){
     (!charted.length ? `<div class="faint" style="font-size:.62rem;margin:0 2px 9px;line-height:1.5">
         ${esc(last(p.name))} isn't on any depth chart yet — showing all nine. Add him on the
         Depth tab and this becomes a short list.</div>` : "") +
+    (batters().includes(id) ? "" : `<div class="notebox" style="margin:0 0 10px">
+        ${esc(last(p.name))} isn't in the batting order, so this is a substitution: he takes
+        the spot <b>and</b> the batting slot of whoever he replaces, and that player comes out
+        of the game. ↺ undoes it.</div>`) +
     `<div class="slotgrid pos9">` + list.map(c=>{
       const bad = blockedBy(inn, c, id);
       const held = P(a[c]);
       const rank = p.pos[c];
       const cls = bad ? "blocked" : rank===1 ? "r1" : rank>1 ? "r2" : "";
       return `<button class="${cls}" ${bad?"disabled":`data-act="benchset" data-c="${c}"`}>${c}
-        <span>${bad ? "BLOCKED" : held ? esc(last(held.name)).slice(0,6).toUpperCase()
+        <span>${bad ? "BLOCKED" : held ? esc(last(held.name)).slice(0,10).toUpperCase()
                : rank ? ord(rank) : "OPEN"}</span>
       </button>`;
     }).join("") + `</div>
     <div class="faint" style="font-size:.62rem;margin-top:11px;line-height:1.5">
       ${t.total} innings today${charted.length ? ` · charted at ${charted.join(", ")}` : ""}.
-      A name under a position means someone's there now — tapping it swaps them out.</div>`;
+      A name under a position means someone's there now — tapping it ${
+        batters().includes(id) ? "trades places with him"
+                               : `subs ${esc(last(p.name))} in for him`}.</div>`;
   $("scrim").classList.add("on"); $("sheet").classList.add("on");
 }
 
@@ -2646,15 +2697,17 @@ function openBenchPick(id){
    having thought to save anything. */
 /* One place where a substitution actually happens, so both entry points behave
    identically and neither can drift. */
-function doSub(outId, inId){
-  const out = P(outId), inc = P(inId);
+function doSub(outId, inId, opts){
+  const out = P(outId), inc = P(inId), o = opts || {};
+  const inn = o.inn || G.cur;
   closeSheet();
   if(!out || !inc || outId === inId) return;
   if(dhLocked(outId) || dhLocked(inId)){
     toast("End the DH role first — Arms tab"); return;
   }
   snap();
-  const {c, k} = subIn(G.cur, outId, inId);
+  const {c, k} = subIn(inn, outId, inId);
+  if(o.lock && c) L(inn)[c] = true;          // hand-set cells survive Auto-fill
   save(); render();
   toast(`${last(inc.name)} in for ${last(out.name)}${k>=0?` — batting ${k+1}`:""}${
     c?` at ${c}`:""}`);
@@ -2813,6 +2866,11 @@ const ACT = {
     // Validate the grid this tap WOULD produce, swap included, before touching state.
     const bad = blockedBy(inn, c, id);
     if(bad){ toast(bad.split(" — ")[0] + " — blocked"); return; }
+    /* Same tap, two meanings, decided by who he is rather than by which sheet you
+       came from: a player already in the game moves, a player who isn't comes IN
+       for the man he replaces and takes his spot in the order. */
+    const out = isSubstitution(inn, c, id);
+    if(out){ doSub(out, id, {inn, lock:true}); return; }
     snap();
     const a = A(inn), from = POSK.find(k=>a[k]===id), displaced = a[c];
     // A trade when he was already on the field, so the other man takes the spot
@@ -2838,6 +2896,8 @@ const ACT = {
     const id = UI.benchPick, c = el.dataset.c;
     closeSheet();
     if(!id) return;
+    const out = isSubstitution(G.cur, c, id);
+    if(out){ doSub(out, id); return; }
     snap();
     const a = A(G.cur);
     const outgoing = a[c] && a[c] !== id ? P(a[c]) : null;
