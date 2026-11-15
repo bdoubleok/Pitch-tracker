@@ -106,7 +106,7 @@
   .seclab{font-size:.6rem;letter-spacing:2px;color:var(--ink-faint);margin:0 2px 8px;font-weight:700}
   .row{display:flex;gap:8px;align-items:center}
   .grow{flex:1;min-width:0}
-  .btn{padding:12px 10px;border-radius:var(--r-sm);font-weight:700;font-size:.85rem;
+  .btn{padding:13px 10px;min-height:44px;border-radius:var(--r-sm);font-weight:700;font-size:.85rem;
     background:var(--navy-850);border:1px solid var(--line);color:var(--ink-dim)}
   .btn.go{background:var(--strike-d);border-color:#2c8f57;color:#dffbe9}
   .btn.pri{background:var(--foul);border-color:#8fb4ff;color:#fff}
@@ -458,6 +458,26 @@
     color:var(--ink);border-radius:8px;padding:9px}
   .rrow .del{flex:0 0 36px;height:36px;border-radius:8px;background:var(--navy-850);border:1px solid var(--hit-d);color:var(--hit)}
 
+  /* ---------- paste-in roster ---------- */
+  /* Monospaced, because what goes in here is lines, and lines are easier to
+     check when they line up. */
+  .pastein{width:100%;background:var(--navy-850);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:10px;font-family:var(--mono);font-size:.78rem;line-height:1.6;
+    resize:vertical;min-height:108px}
+  .prow{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;
+    background:var(--navy-850);border:1px solid var(--line);margin-bottom:5px;font-size:.78rem}
+  .prow .tag{flex:none;width:52px;font-family:var(--mono);font-size:.54rem;font-weight:800;
+    letter-spacing:.8px;text-align:center;padding:3px 0;border-radius:5px;
+    border:1px solid var(--line);color:var(--ink-faint)}
+  .prow.new{border-color:var(--strike-d)}
+  .prow.new .tag{color:var(--strike);border-color:var(--strike-d)}
+  .prow.renum{border-color:var(--ball-d)}
+  .prow.renum .tag{color:var(--ball);border-color:var(--ball-d)}
+  .prow.bad{border-color:var(--hit-d);background:#2a1116}
+  .prow.bad .tag{color:var(--hit);border-color:var(--hit-d)}
+  .prow .who{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow .jer{flex:none;font-family:var(--mono);font-size:.7rem;color:var(--ink-dim)}
+
   /* ---------- ARMS tab: pitching rotation ---------- */
   /* Amber, not red: this is "look at this", not "this is broken". It sits under
      the diamond because that's where the state gets made. */
@@ -773,6 +793,22 @@
           Numbers and names save to this device automatically. Mark who's here today
           on the <b>Depth</b> tab — absent players drop out of the lineup and the batting order.
         </div>
+
+        <div class="seclab" style="margin:16px 2px 7px;color:var(--ball)">PASTE A ROSTER</div>
+        <textarea id="pasteIn" class="pastein" spellcheck="false"
+          placeholder="#31 Ryan Hayes&#10;33 Kang, Kyle&#10;Max Cook 3&#10;&#10;…or paste a CSV with a header row."></textarea>
+        <div class="row" style="margin-top:7px">
+          <button class="btn wide" data-act="pastescan">Read it</button>
+          <button class="btn wide" data-act="pastewipe">Clear</button>
+        </div>
+        <div id="pastePrev"></div>
+        <div class="faint" style="font-size:.62rem;margin-top:10px;line-height:1.55">
+          One player per line, in whatever order the number and name come in — <b>#31 Ryan Hayes</b>,
+          <b>31 Hayes, Ryan</b> and <b>Ryan Hayes 31</b> all read the same. A CSV header row
+          (<b>Number, Last, First</b>) is used if there is one. A line with a colon, a year or
+          more than five words is read as a heading and listed as skipped. Nothing is written
+          until you've seen what it understood, and <b>nobody is ever removed</b> by a paste.
+        </div>
       </div>
     </details>
 
@@ -890,7 +926,7 @@ function ST(id){ return G.stats[id] || (G.stats[id] = freshStat()); }
 
 let APP = { roster:[], game:null, hist:[], saved:[] };
 let G;                                  // shorthand for APP.game
-let UI = { tab:"field", dview:"player", tview:"game", cardAll:true, sheet:null };
+let UI = { tab:"field", dview:"player", tview:"game", cardAll:true, sheet:null, paste:null };
 const UNDO = [];
 
 /* ---------------------------------------------------------------------
@@ -990,6 +1026,191 @@ function syncFromTracker(){
   });
   save();
   return fresh;
+}
+
+/* =====================================================================
+   PASTE-IN ROSTER
+
+   A roster arrives as text: copied out of GameChanger, pasted from a team
+   email, a column out of a spreadsheet. Retyping seventeen names into
+   seventeen rows is the kind of work software is supposed to absorb.
+
+   Two rules make it safe to paste anything at all:
+
+     · Nothing is written until you have seen what was understood. The
+       preview IS the confirm step, and it names the lines it could not
+       read rather than dropping them quietly.
+     · It never removes anybody. A paste that's missing a kid means the
+       paste is short, not that he's off the team — and roster edits
+       aren't covered by ↺, so there would be no way back.
+   ===================================================================== */
+const NAME_SUFFIX = /^(jr|sr|ii|iii|iv|v)\.?$/i;
+/* Trailing position codes are what a roster export puts after the name. They
+   aren't part of anyone's surname, and they aren't a depth chart either —
+   "OF" can't be turned into LF, CF or RF without guessing. */
+const PASTE_POS = /^(p|c|1b|2b|3b|ss|lf|cf|rf|of|if|dh|eh|util|utl)$/i;
+
+/* A spreadsheet quotes any cell holding a comma — which is exactly the shape
+   "Hayes, Ryan" has — so splitting on commas has to respect the quotes. */
+function pasteCells(line){
+  const out = []; let cur = "", q = false;
+  for(const ch of line){
+    if(ch === '"'){ q = !q; continue; }
+    if((ch === "," || ch === "\t") && !q){ out.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map(c=>c.trim());
+}
+
+/* "Ryan Hayes" and "Hayes, Ryan" are one player written two ways. The app
+   stores "Last, First" so everything downstream can split on the comma. */
+function toLastFirst(s){
+  const t = String(s||"").replace(/["']/g,"").replace(/\s+/g," ").trim().replace(/^,|,$/g,"").trim();
+  if(!t) return "";
+  if(t.includes(",")){
+    const bits = t.split(",");
+    const surname = bits.shift().trim(), rest = bits.join(" ").replace(/\s+/g," ").trim();
+    return rest ? `${surname}, ${rest}` : surname;
+  }
+  const w = t.split(" ");
+  if(w.length === 1) return w[0];
+  let surname = w.pop();
+  if(NAME_SUFFIX.test(surname) && w.length > 1) surname = w.pop() + " " + surname;   // "Rohrbach Jr"
+  return `${surname}, ${w.join(" ")}`;
+}
+
+/* A header line tells us which column is which, so "First,Last,Number" and
+   "Number,Name" both land correctly instead of being guessed at. */
+function pasteHeader(line){
+  const cs = pasteCells(line).map(c=>c.toLowerCase().replace(/\.$/,""));
+  if(cs.length < 2) return null;
+  const m = {};
+  cs.forEach((c,i)=>{
+    if(/^(#|no|num|number|jersey|jersey ?#|jersey number|uniform)$/.test(c)) m.num = i;
+    else if(/^first( name)?$/.test(c)) m.first = i;
+    else if(/^(last( name)?|surname|family name)$/.test(c)) m.last = i;
+    else if(/^(name|player|player name|full name)$/.test(c)) m.name = i;
+  });
+  return (m.name !== undefined || m.last !== undefined) ? m : null;
+}
+function pasteByColumn(line, m){
+  const cs = pasteCells(line);
+  const rawNum = m.num !== undefined ? String(cs[m.num]||"").replace(/^#/,"").trim() : "";
+  const name = m.last !== undefined
+    ? toLastFirst(`${cs[m.last]||""}, ${m.first !== undefined ? (cs[m.first]||"") : ""}`)
+    : toLastFirst(cs[m.name] || "");
+  return name ? { num: /^\d{1,3}$/.test(rawNum) ? rawNum : "", name, drop:[] } : null;
+}
+
+/* No header: read the line's shape. A jersey number is a short run of digits
+   behind a #, at the front, or at the end — the three places anyone writes one. */
+function pasteByShape(line){
+  let s = String(line).replace(/^[-•*·]+\s*/,"").replace(/\t/g," ").replace(/\s+/g," ").trim();
+  let num = "";
+  const hash = s.match(/#\s*(\d{1,3})\b/);
+  if(hash){ num = hash[1]; s = (s.slice(0,hash.index) + " " + s.slice(hash.index + hash[0].length)); }
+  else {
+    const lead = s.match(/^(\d{1,3})\s*[.,:)\-]?\s+/);
+    if(lead){ num = lead[1]; s = s.slice(lead[0].length); }
+    else {
+      const tail = s.match(/[\s,]+(\d{1,3})\s*$/);
+      if(tail){ num = tail[1]; s = s.slice(0, tail.index); }
+    }
+  }
+  // Peel position codes off the end so they can't be mistaken for a surname.
+  const drop = [];
+  let parts = s.replace(/\s+/g," ").trim().split(/[\s,\/|]+/).filter(Boolean);
+  while(parts.length > 1 && PASTE_POS.test(parts[parts.length-1])) drop.unshift(parts.pop().toUpperCase());
+  // Rebuilding on spaces would lose a "Last, First" comma, so only rebuild when
+  // something was actually peeled off the end.
+  const name = toLastFirst(drop.length ? parts.join(" ") : s);
+  return name && /[a-z]/i.test(name) ? { num, name, drop } : null;
+}
+
+/* A roster copied off a page brings its furniture with it: a title line, a
+   coach, a date. Three things no player's name ever has — a colon, a year, or
+   six words — are enough to tell the heading from the kid, and anything caught
+   here is listed as skipped rather than quietly dropped. */
+function pasteIsHeading(line){
+  const s = String(line).trim();
+  if(s.includes(":")) return true;                       // "Coach: Dave"
+  if(/\b\d{4}\b/.test(s)) return true;                   // "2026 Fall Roster"
+  if(s.split(/\s+/).filter(Boolean).length > 5) return true;
+  return false;
+}
+
+function parseRosterText(text){
+  const lines = String(text||"").split(/[\r\n]+/).map(l=>l.trim()).filter(Boolean);
+  const rows = [], bad = [];
+  let cols = null;
+  lines.forEach((line, i)=>{
+    if(i === 0){ const h = pasteHeader(line); if(h){ cols = h; return; } }
+    const r = (cols || !pasteIsHeading(line))
+      ? (cols ? pasteByColumn(line, cols) : pasteByShape(line))
+      : null;
+    if(r && r.name) rows.push(r); else bad.push(line);
+  });
+  // One paste, one row per player: a name repeated in the paste takes its last
+  // spelling rather than arriving twice.
+  const seen = new Map();
+  rows.forEach(r=> seen.set(normName(r.name), r));
+  return { rows:[...seen.values()], bad };
+}
+
+/* What this paste would DO to the roster you already have. */
+function rosterDiff(rows){
+  const mine = new Map(APP.roster.map(p=>[normName(p.name), p]));
+  const add = [], renum = [], same = [];
+  rows.forEach(r=>{
+    const p = mine.get(normName(r.name));
+    if(!p) add.push(r);
+    else if(r.num !== "" && String(p.num) !== String(r.num)) renum.push({p, from:p.num, to:r.num});
+    else same.push({p, r});
+  });
+  const pasted = new Set(rows.map(r=>normName(r.name)));
+  const missing = APP.roster.filter(p=>p.name && !pasted.has(normName(p.name)));
+  return {add, renum, same, missing};
+}
+
+/* Zero out a value of any shape. Used to clone a tracker player's stat line
+   without carrying his numbers over. */
+function zeroLike(v){
+  if(Array.isArray(v)) return [];
+  if(v && typeof v === "object"){ const o = {}; for(const k in v) o[k] = zeroLike(v[k]); return o; }
+  if(typeof v === "number") return 0;
+  if(typeof v === "boolean") return false;
+  if(typeof v === "string") return "";
+  return v;
+}
+/* The tracker owns the team list, so players pasted here have to reach it too
+   or the two pages end up disagreeing about who is on the team. Rather than
+   hard-code the tracker's player shape — which would go stale the first time it
+   gains a stat — clone a player it already has and zero the numbers. Adds only,
+   never touches an existing line, and does nothing at all if the tracker isn't
+   there (a Save-as-HTML copy on a phone). */
+function pushToTracker(rows){
+  if(!TEAM || !rows.length) return 0;
+  try{
+    const o = JSON.parse(localStorage.getItem(TRACKER_KEY));
+    const t = o && o.teams && o.teams.filter(x=>x && x.id === TEAM.id)[0];
+    if(!t || !t.game) return 0;
+    const list = t.game.pitchers || (t.game.pitchers = []);
+    const have = new Set(list.map(x=>normName(x.name)));
+    const model = list[0];
+    let n = 0;
+    rows.forEach(r=>{
+      if(have.has(normName(r.name))) return;
+      // The tracker stores a jersey as a number (its own editor does parseInt),
+      // so hand it one rather than leaving two types in one roster.
+      const num = /^\d+$/.test(r.num) ? parseInt(r.num, 10) : r.num;
+      const np = model ? Object.assign(zeroLike(model), {num, name:r.name})
+                       : {num, name:r.name};
+      list.push(np); have.add(normName(r.name)); n++;
+    });
+    if(n) localStorage.setItem(TRACKER_KEY, JSON.stringify(o));
+    return n;
+  }catch(e){ return 0; }
 }
 
 /* Depth ranks used to be tiers: 1 meant "primary", 2 meant "can play", and any
@@ -2567,6 +2788,7 @@ function renderSettings(){
       <input class="nam" data-field="name" data-id="${p.id}" value="${esc(p.name)}" placeholder="Last, First">
       <button class="del" data-act="delplayer" data-id="${p.id}">✕</button>
     </div>`).join("");
+  renderPaste();
   $("histBody").innerHTML = APP.hist.length
     ? APP.hist.slice().reverse().map((g,k)=>`
         <div class="row" style="padding:9px 2px;border-bottom:1px solid var(--line)">
@@ -2574,6 +2796,55 @@ function renderSettings(){
           <button class="btn" data-act="delgame" data-k="${APP.hist.length-1-k}">Delete</button>
         </div>`).join("")
     : `<div class="faint" style="font-size:.76rem">No finished games yet. Tap “Finish game” above to bank one into your season totals.</div>`;
+}
+
+/* The preview is the confirm step, so it has to show the whole consequence:
+   who arrives, whose number changes, who was already there, which lines were
+   unreadable, and who on the roster this paste simply doesn't mention. */
+function renderPaste(){
+  const box = $("pastePrev"), st = UI.paste;
+  if(!box) return;
+  if(!st){ box.innerHTML = ""; return; }
+
+  const d = rosterDiff(st.rows);
+  const nm = r => `${esc(firstN(r.name).charAt(0) ? firstN(r.name).charAt(0)+". " : "")}${esc(last(r.name))}`;
+  const jer = n => n === "" || n == null ? `<span class="faint">no #</span>` : `#${esc(n)}`;
+
+  /* "Unreadable" would be wrong for a heading the parser skipped on purpose, and
+     the rows below are tagged SKIPPED either way. */
+  let h = `<div class="seclab" style="margin:13px 2px 7px">READ ${
+    st.rows.length} PLAYER${st.rows.length===1?"":"S"}${st.bad.length?` · ${st.bad.length} LINE${
+    st.bad.length===1?"":"S"} SKIPPED`:""}</div>`;
+
+  h += d.add.map(r=>`<div class="prow new"><span class="tag">NEW</span>
+      <span class="who">${nm(r)}${r.drop && r.drop.length
+        ? ` <span class="faint" style="font-size:.6rem">· ${esc(r.drop.join(" "))} ignored</span>` : ""}</span>
+      <span class="jer">${jer(r.num)}</span></div>`).join("");
+
+  h += d.renum.map(x=>`<div class="prow renum"><span class="tag">NUMBER</span>
+      <span class="who">${nm(x.p)}</span>
+      <span class="jer">${jer(x.from)} → #${esc(x.to)}</span></div>`).join("");
+
+  h += d.same.map(x=>`<div class="prow"><span class="tag">ON ROSTER</span>
+      <span class="who">${nm(x.p)}</span><span class="jer">${jer(x.p.num)}</span></div>`).join("");
+
+  /* Unreadable lines are shown, not swallowed. A coach can see "Coach: Dave" was
+     skipped and stop looking for him. */
+  h += st.bad.map(line=>`<div class="prow bad"><span class="tag">SKIPPED</span>
+      <span class="who">${esc(line)}</span></div>`).join("");
+
+  if(d.missing.length)
+    h += `<div class="faint" style="font-size:.62rem;margin:9px 2px 0;line-height:1.5">
+      ${d.missing.length} on your roster ${d.missing.length===1?"isn't":"aren't"} in this paste —
+      ${d.missing.length===1?"he stays":"they stay"}. Remove anyone with the ✕ above.</div>`;
+
+  const todo = d.add.length + d.renum.length;
+  h += `<button class="btn ${todo?"pri":""} wide" style="width:100%;margin-top:10px"
+      ${todo?`data-act="pasteapply"`:"disabled"}>${
+      todo ? [d.add.length ? `Add ${d.add.length}` : "",
+              d.renum.length ? `renumber ${d.renum.length}` : ""].filter(Boolean).join(" · ")
+           : "Nothing to change"}</button>`;
+  box.innerHTML = h;
 }
 
 /* =====================================================================
@@ -3333,6 +3604,43 @@ const ACT = {
   /* ---- roster ---- */
   addplayer(){ snap(); APP.roster.push(freshPlayer({num:"",name:""}));
     save(); renderSettings(); },
+
+  /* Read, then show, then write — three steps, and the coach is between the
+     second and the third. */
+  pastescan(){
+    const text = ($("pasteIn") && $("pasteIn").value) || "";
+    if(!text.trim()){ toast("Paste a roster first"); return; }
+    const got = parseRosterText(text);
+    if(!got.rows.length && got.bad.length){
+      UI.paste = got; renderPaste();
+      toast("Couldn't read any names — check the lines below");
+      return;
+    }
+    UI.paste = got;
+    renderPaste();
+  },
+  pastewipe(){
+    if($("pasteIn")) $("pasteIn").value = "";
+    UI.paste = null; renderPaste();
+  },
+  pasteapply(){
+    const st = UI.paste; if(!st) return;
+    const d = rosterDiff(st.rows);
+    if(!d.add.length && !d.renum.length){ toast("Nothing to change"); return; }
+    d.add.forEach(r=> APP.roster.push(freshPlayer({num:r.num, name:r.name})));
+    d.renum.forEach(x=> x.p.num = x.to);
+    normalizeDepth();
+    save();
+    const toTracker = pushToTracker(d.add);
+    UI.paste = null;
+    if($("pasteIn")) $("pasteIn").value = "";
+    renderSettings();
+    const bits = [];
+    if(d.add.length) bits.push(`${d.add.length} added`);
+    if(d.renum.length) bits.push(`${d.renum.length} renumbered`);
+    if(toTracker) bits.push(`${toTracker} sent to the tracker`);
+    toast(bits.join(" · "));
+  },
   delplayer(el){
     const p = P(el.dataset.id);
     if(!confirm(`Remove ${p.name||"this player"} from the roster?`)) return;
